@@ -41,28 +41,12 @@
     <uses-permission android:name="android.permission.READ_DEVICE_CONFIG" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
     <uses-permission android:name="android.permission.VIBRATE"/>
-    <uses-permission android:name="android.permission.SUSPEND_APPS" />
-    <uses-permission android:name="android.permission.INTERACT_ACROSS_USERS_FULL" />
     <!-- for rotating surface by arbitrary degree -->
     <uses-permission android:name="android.permission.ROTATE_SURFACE_FLINGER" />
     <uses-permission android:name="android.permission.WAKEUP_SURFACE_FLINGER" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.ACCESS_CONTEXTUAL_SEARCH" />
-    <uses-permission android:name="android.permission.INJECT_EVENTS" />
-    <uses-permission android:name="android.permission.FORCE_STOP_PACKAGES" />
-    <uses-permission android:name="android.permission.QUERY_USERS" />
-    <uses-permission android:name="android.permission.REGISTER_STATS_PULL_ATOM"/>
-    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
-    <uses-permission android:name="android.permission.MEDIA_CONTENT_CONTROL" />
-    <uses-permission android:name="org.omnirom.omnijaws.READ_WEATHER" />
-    <uses-permission android:name="android.permission.GET_INTENT_SENDER_INTENT" />
-    <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
-
-    <!-- Floating window -->
-    <uses-permission android:name="com.libremobileos.permission.START_FREEFORM" />
+    <uses-permission android:name="android.permission.ACCESS_CONTEXTUAL_SEARCH" />
 
     <permission
         android:name="${applicationId}.permission.GRID_CONTROL"
@@ -153,7 +137,7 @@
         -->
         <activity
             android:name="com.android.launcher3.settings.SettingsActivity"
-            android:label="@string/settings_title"
+            android:label="@string/settings_button_text"
             android:theme="@style/HomeSettings.Theme"
             android:exported="true"
             android:autoRemoveFromRecents="true">
@@ -162,54 +146,6 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
-
-        <!-- Icons -->
-        <activity
-            android:name="com.android.launcher3.settings.SettingsIcons"
-            android:label="@string/icons_category_title"
-            android:theme="@style/HomeSettings.Theme"
-            android:exported="true"
-            android:autoRemoveFromRecents="true" />
-
-        <!-- App drawer -->
-        <activity
-            android:name="com.android.launcher3.settings.SettingsAppDrawer"
-            android:label="@string/app_drawer_category_title"
-            android:theme="@style/HomeSettings.Theme"
-            android:exported="true"
-            android:autoRemoveFromRecents="true" />
-
-        <!-- Homescreen -->
-        <activity
-            android:name="com.android.launcher3.settings.SettingsHomescreen"
-            android:label="@string/home_category_title"
-            android:theme="@style/HomeSettings.Theme"
-            android:exported="true"
-            android:autoRemoveFromRecents="true" />
-
-        <!-- Misc settings -->
-        <activity
-            android:name="com.android.launcher3.settings.SettingsMisc"
-            android:label="@string/misc_category_title"
-            android:theme="@style/HomeSettings.Theme"
-            android:exported="true"
-            android:autoRemoveFromRecents="true" />
-
-        <!-- Recents -->
-        <activity
-            android:name="com.android.launcher3.settings.SettingsRecents"
-            android:label="@string/recents_category_title"
-            android:theme="@style/HomeSettings.Theme"
-            android:exported="true"
-            android:autoRemoveFromRecents="true" />
-
-        <!-- Icon Pack -->
-        <activity
-            android:name="com.android.launcher3.icons.pack.IconPackSettingsActivity"
-            android:label="@string/icon_pack_title"
-            android:theme="@style/HomeSettings.Theme"
-            android:exported="true"
-            android:autoRemoveFromRecents="true"  />
 
         <provider
             android:name="com.android.launcher3.testing.TestInformationProvider"
@@ -248,7 +184,7 @@
         <activity
             android:name="com.android.launcher3.lineage.trust.TrustAppsActivity"
             android:label="@string/trust_apps_manager_name"
-            android:theme="@style/Theme.SubSettingsBase.Expressive"
+            android:theme="@android:style/Theme.DeviceDefault.Settings"
             android:autoRemoveFromRecents="true" />
     </application>
 </manifest>

@@ -41,6 +41,7 @@ import android.appwidget.AppWidgetHostView;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Insets;
+import android.graphics.Path;
 import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
@@ -94,7 +95,6 @@ import com.android.launcher3.config.FeatureFlags;
 import com.android.launcher3.dagger.LauncherComponentProvider;
 import com.android.launcher3.dragndrop.DragController.DragListener;
 import com.android.launcher3.dragndrop.DragOptions;
-import com.android.launcher3.graphics.PathWrapper;
 import com.android.launcher3.graphics.ShapeDelegate;
 import com.android.launcher3.graphics.ThemeManager;
 import com.android.launcher3.logger.LauncherAtom.FromState;
@@ -107,7 +107,6 @@ import com.android.launcher3.model.data.WorkspaceItemFactory;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.pageindicators.PageIndicatorDots;
 import com.android.launcher3.pageindicators.PaginationArrow;
-import com.android.launcher3.util.BlurBackgroundHelper;
 import com.android.launcher3.util.LauncherBindableItemsContainer;
 import com.android.launcher3.util.Thunk;
 import com.android.launcher3.views.ActivityContext;
@@ -224,7 +223,7 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
     @Thunk
     int mTargetRank, mPrevTargetRank, mEmptyCellRank;
 
-    private PathWrapper mClipPath;
+    private Path mClipPath;
 
     @ViewDebug.ExportedProperty(category = "launcher",
             mapping = {
@@ -267,7 +266,6 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
     private KeyboardInsetAnimationCallback mKeyboardInsetAnimationCallback;
 
     private final @NonNull GradientDrawable mBackground;
-    private final BlurBackgroundHelper mBlurBackgroundHelper;
 
     /**
      * Used to inflate the Workspace from XML.
@@ -293,8 +291,6 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
                 ResourcesCompat.getDrawable(getResources(),
                         R.drawable.round_rect_folder, getContext().getTheme()));
         mBackground.setCallback(this);
-        mBlurBackgroundHelper =
-                mActivityContext.getActivityComponent().getBlurBackgroundHelper();
     }
 
     @Override
@@ -739,8 +735,6 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
         Folder openFolder = getOpen(mActivityContext);
         closeOpenFolder(openFolder);
 
-        mBlurBackgroundHelper.prepareToOpenFolder(this);
-
         mContent.bindItems(items);
         mContent.setCanAnnouncePageDescriptionForFolder(true);
         centerAboutIcon();
@@ -989,7 +983,6 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
     }
 
     private void closeComplete(boolean wasAnimated) {
-        mBlurBackgroundHelper.folderCloseComplete();
         // TODO: Clear all active animations.
         BaseDragLayer parent = (BaseDragLayer) getParent();
         if (parent != null) {
@@ -1839,7 +1832,7 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
      * rounded rect.
      */
     @Override
-    public void setClipPath(PathWrapper clipPath) {
+    public void setClipPath(Path clipPath) {
         mClipPath = clipPath;
         invalidate();
     }
@@ -1848,22 +1841,12 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
     protected void dispatchDraw(Canvas canvas) {
         if (mClipPath != null) {
             int count = canvas.save();
-            canvas.clipPath(mClipPath.getPath());
-
-            mBlurBackgroundHelper.drawFolderBlur(canvas, mClipPath, this);
+            canvas.clipPath(mClipPath);
             mBackground.draw(canvas);
-
-            if (!mIsAnimatingClosed) {
-                super.dispatchDraw(canvas);
-            }
             canvas.restoreToCount(count);
-            if (mIsAnimatingClosed) {
-                super.dispatchDraw(canvas);
-            }
+            super.dispatchDraw(canvas);
         } else {
-            mBlurBackgroundHelper.drawFolderBlur(canvas, null, this);
             mBackground.draw(canvas);
-
             super.dispatchDraw(canvas);
         }
     }

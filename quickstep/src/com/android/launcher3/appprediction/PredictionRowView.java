@@ -35,7 +35,6 @@ import com.android.launcher3.BubbleTextView;
 import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.DeviceProfile.OnDeviceProfileChangeListener;
 import com.android.launcher3.Flags;
-import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.R;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.allapps.FloatingHeaderRow;
@@ -43,7 +42,6 @@ import com.android.launcher3.allapps.FloatingHeaderView;
 import com.android.launcher3.anim.AlphaUpdateListener;
 import com.android.launcher3.keyboard.FocusIndicatorHelper;
 import com.android.launcher3.keyboard.FocusIndicatorHelper.SimpleFocusIndicatorHelper;
-import com.android.launcher3.lineage.trust.db.TrustDatabaseHelper;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.ItemInfoWithIcon;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
@@ -150,7 +148,7 @@ public class PredictionRowView<T extends Context & ActivityContext>
         int totalHeight = iconHeight + iconPadding + textHeight + mVerticalPadding * 2;
         // Prediction row height will be 4dp bigger than the regular apps in A-Z list when two line
         // is not enabled. Otherwise, the extra height will increase by just the textHeight.
-        int extraHeight = LauncherPrefs.ENABLE_TWOLINE_ALLAPPS_TOGGLE.get(getContext())
+        int extraHeight = deviceProfile.inv.enableTwoLinesInAllApps
                 ? (textHeight + mTopRowExtraHeight) : mTopRowExtraHeight;
         totalHeight += extraHeight;
         return getVisibility() == GONE ? 0 : totalHeight + getPaddingTop() + getPaddingBottom();
@@ -191,15 +189,10 @@ public class PredictionRowView<T extends Context & ActivityContext>
         applyPredictedApps(items);
     }
 
-    private boolean isAppHidden(ItemInfo itemInfo) {
-        TrustDatabaseHelper instance = TrustDatabaseHelper.getInstance(getContext());
-        return instance != null && instance.isPackageHidden(itemInfo.getTargetPackage());
-    }
-
     private void applyPredictedApps(List<ItemInfo> items) {
         mPredictedApps.clear();
         mPredictedApps.addAll(items.stream()
-                .filter(itemInfo -> itemInfo instanceof WorkspaceItemInfo && !isAppHidden(itemInfo))
+                .filter(itemInfo -> itemInfo instanceof WorkspaceItemInfo)
                 .map(itemInfo -> (WorkspaceItemInfo) itemInfo).collect(Collectors.toList()));
         applyPredictionApps();
     }

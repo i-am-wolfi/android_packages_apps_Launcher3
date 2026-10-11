@@ -36,6 +36,7 @@ import static com.android.launcher3.LauncherState.NORMAL;
 import static com.android.launcher3.LauncherState.SPRING_LOADED;
 import static com.android.launcher3.MotionEventsUtils.isTrackpadMotionEvent;
 import static com.android.launcher3.MotionEventsUtils.isTrackpadMultiFingerSwipe;
+import static com.android.launcher3.Utilities.qsbOnFirstScreen;
 import static com.android.launcher3.Utilities.shouldEnableMouseInteractionChanges;
 import static com.android.launcher3.anim.AnimatorListeners.forSuccessCallback;
 import static com.android.launcher3.config.FeatureFlags.FOLDABLE_SINGLE_PAGE;
@@ -650,7 +651,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     public void bindAndInitFirstWorkspaceScreen() {
         // Add the first page
         CellLayout firstPage = insertNewWorkspaceScreen(Workspace.FIRST_SCREEN_ID, getChildCount());
-        if (!LauncherPrefs.SHOW_QUICKSPACE.get(getContext())) {
+        if (!qsbOnFirstScreen()) {
             mFirstPagePinnedItem = null;
             return;
         }
@@ -660,14 +661,14 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
             // As workspace does not touch the edges, we do not need a full
             // width first page pinned item.
             mFirstPagePinnedItem = LayoutInflater.from(getContext())
-                    .inflate(R.layout.reserved_container_workspace, firstPage, false);
+                    .inflate(R.layout.search_container_workspace, firstPage, false);
         }
 
         int cellHSpan = mLauncher.getDeviceProfile().inv.numSearchContainerColumns;
         CellLayoutLayoutParams lp = new CellLayoutLayoutParams(0, 0, cellHSpan, 1);
         lp.canReorder = false;
         if (!firstPage.addViewToCellLayout(
-                mFirstPagePinnedItem, 0, R.id.reserved_container_workspace, lp, true)) {
+                mFirstPagePinnedItem, 0, R.id.search_container_workspace, lp, true)) {
             Log.e(TAG, "Failed to add to item at (0, 0) to CellLayout");
             mFirstPagePinnedItem = null;
         }
@@ -1426,9 +1427,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
             @Override
             public void run() {
                 final Point size = LauncherAppState.getIDP(getContext()).defaultWallpaperSize;
-                if (!mWallpaperManager.isWallpaperSupported()) {
-                    mWallpaperManager.suggestDesiredDimensions(0, 0);
-                } else if (size.x != mWallpaperManager.getDesiredMinimumWidth()
+                if (size.x != mWallpaperManager.getDesiredMinimumWidth()
                         || size.y != mWallpaperManager.getDesiredMinimumHeight()) {
                     mWallpaperManager.suggestDesiredDimensions(size.x, size.y);
                 }
@@ -1505,9 +1504,7 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
         mWallpaperOffset.setWindowToken(null);
-        mWallpaperOffset.destroy();
         mLauncher.getStateManager().removeStateListener(mAccessibilityDropListener);
-        mOverlayCallbacks.clear();
     }
 
     @Override
@@ -3525,12 +3522,8 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
      */
     public void moveToDefaultScreen() {
         int page = DEFAULT_PAGE;
-        if (!workspaceInModalState()) {
-            if (getNextPage() != page) {
-                snapToPage(page);
-            } else {
-                mLauncher.getStateManager().goToState(ALL_APPS);
-            }
+        if (!workspaceInModalState() && getNextPage() != page) {
+            snapToPage(page);
         }
         View child = getChildAt(page);
         if (child != null) {

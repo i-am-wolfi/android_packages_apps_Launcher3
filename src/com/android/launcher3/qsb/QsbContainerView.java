@@ -33,7 +33,6 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -48,7 +47,6 @@ import com.android.launcher3.InvariantDeviceProfile;
 import com.android.launcher3.LauncherAppState;
 import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.R;
-import com.android.launcher3.Utilities;
 import com.android.launcher3.dagger.LauncherComponentProvider;
 import com.android.launcher3.graphics.FragmentWithPreview;
 
@@ -60,8 +58,6 @@ import com.android.launcher3.graphics.FragmentWithPreview;
  * AppWidgetManager directly, so that it keeps working in that case.
  */
 public class QsbContainerView extends FrameLayout {
-
-    private static final String TAG = "QsbContainerView";
 
     public static final String SEARCH_ENGINE_SETTINGS_KEY = "selected_search_engine";
 
@@ -76,17 +72,10 @@ public class QsbContainerView extends FrameLayout {
         String providerPkg = Settings.Secure.getString(context.getContentResolver(),
                 SEARCH_ENGINE_SETTINGS_KEY);
         if (providerPkg == null) {
-            try {
-                SearchManager searchManager = context.getSystemService(SearchManager.class);
-                ComponentName componentName = searchManager.getGlobalSearchActivity();
-                if (componentName != null) {
-                    providerPkg = searchManager.getGlobalSearchActivity().getPackageName();
-                }
-                if (providerPkg == null && Utilities.isGSAEnabled(context)) {
-                    providerPkg = Utilities.GSA_PACKAGE;
-                }
-            } catch (Exception e) {
-                Log.e(TAG, "Search package name exception", e);
+            SearchManager searchManager = context.getSystemService(SearchManager.class);
+            ComponentName componentName = searchManager.getGlobalSearchActivity();
+            if (componentName != null) {
+                providerPkg = searchManager.getGlobalSearchActivity().getPackageName();
             }
         }
         return providerPkg;
@@ -109,7 +98,7 @@ public class QsbContainerView extends FrameLayout {
         AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(context);
         for (AppWidgetProviderInfo info :
                 appWidgetManager.getInstalledProvidersForPackage(providerPkg, null)) {
-            if (info.provider.getPackageName().equals(providerPkg)) {
+            if (info.provider.getPackageName().equals(providerPkg) && info.configure == null) {
                 if ((info.widgetCategory
                         & AppWidgetProviderInfo.WIDGET_CATEGORY_SEARCHBOX) != 0) {
                     return info;
@@ -301,7 +290,7 @@ public class QsbContainerView extends FrameLayout {
         }
 
         public boolean isQsbEnabled() {
-            return false;
+            return BuildConfig.QSB_ON_FIRST_SCREEN;
         }
 
         protected Bundle createBindOptions() {

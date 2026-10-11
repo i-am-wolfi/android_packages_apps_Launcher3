@@ -30,9 +30,7 @@ import static com.android.launcher3.anim.PropertySetter.NO_ANIM_PROPERTY_SETTER;
 import static com.android.launcher3.states.StateAnimationConfig.ANIM_ALL_APPS_FADE;
 import static com.android.launcher3.states.StateAnimationConfig.ANIM_VERTICAL_PROGRESS;
 import static com.android.launcher3.util.SystemUiController.FLAG_DARK_NAV;
-import static com.android.launcher3.util.SystemUiController.FLAG_DARK_STATUS;
 import static com.android.launcher3.util.SystemUiController.FLAG_LIGHT_NAV;
-import static com.android.launcher3.util.SystemUiController.FLAG_LIGHT_STATUS;
 import static com.android.launcher3.util.SystemUiController.UI_STATE_ALL_APPS;
 
 import android.animation.Animator;
@@ -87,7 +85,6 @@ public class AllAppsTransitionController
     public static final int REVERT_SWIPE_ALL_APPS_TO_HOME_ANIMATION_DURATION_MS = 200;
 
     private static final float NAV_BAR_COLOR_FORCE_UPDATE_THRESHOLD = 0.1f;
-    private static final float STATUS_BAR_COLOR_FORCE_UPDATE_THRESHOLD = 0.4f;
     private static final float SWIPE_DRAG_COMMIT_THRESHOLD =
             1 - AllAppsSwipeController.ALL_APPS_STATE_TRANSITION_MANUAL;
 
@@ -113,9 +110,7 @@ public class AllAppsTransitionController
                 @Override
                 public Float get(AllAppsTransitionController controller) {
                     if (controller.mShouldShowAllAppsOnSheet) {
-                        View activeRecyclerView = controller.mAppsView.getActiveRecyclerView();
-                        return activeRecyclerView == null ? ALL_APPS_PULL_BACK_TRANSLATION_DEFAULT
-                                : activeRecyclerView.getTranslationY();
+                        return controller.mAppsView.getActiveRecyclerView().getTranslationY();
                     } else {
                         return controller.getAppsViewPullbackTranslationY().getValue();
                     }
@@ -124,19 +119,13 @@ public class AllAppsTransitionController
                 @Override
                 public void setValue(AllAppsTransitionController controller, float translation) {
                     if (controller.mShouldShowAllAppsOnSheet) {
-                        View activeRecyclerView = controller.mAppsView.getActiveRecyclerView();
-                        if (activeRecyclerView != null) {
-                            activeRecyclerView.setTranslationY(translation);
-                        }
+                        controller.mAppsView.getActiveRecyclerView().setTranslationY(translation);
                         controller.getAppsViewPullbackTranslationY().setValue(
                                 ALL_APPS_PULL_BACK_TRANSLATION_DEFAULT);
                     } else {
                         controller.getAppsViewPullbackTranslationY().setValue(translation);
-                        View activeRecyclerView = controller.mAppsView.getActiveRecyclerView();
-                        if (activeRecyclerView != null) {
-                            activeRecyclerView.setTranslationY(
-                                    ALL_APPS_PULL_BACK_TRANSLATION_DEFAULT);
-                        }
+                        controller.mAppsView.getActiveRecyclerView().setTranslationY(
+                                ALL_APPS_PULL_BACK_TRANSLATION_DEFAULT);
                     }
                 }
             };
@@ -149,9 +138,7 @@ public class AllAppsTransitionController
                 @Override
                 public Float get(AllAppsTransitionController controller) {
                     if (controller.mShouldShowAllAppsOnSheet) {
-                        View activeRecyclerView = controller.mAppsView.getActiveRecyclerView();
-                        return activeRecyclerView == null ? ALL_APPS_PULL_BACK_ALPHA_DEFAULT
-                                : activeRecyclerView.getAlpha();
+                        return controller.mAppsView.getActiveRecyclerView().getAlpha();
                     } else {
                         return controller.getAppsViewPullbackAlpha().getValue();
                     }
@@ -160,19 +147,13 @@ public class AllAppsTransitionController
                 @Override
                 public void setValue(AllAppsTransitionController controller, float alpha) {
                     if (controller.mShouldShowAllAppsOnSheet) {
-                        View activeRecyclerView = controller.mAppsView.getActiveRecyclerView();
-                        if (activeRecyclerView != null) {
-                            activeRecyclerView.setAlpha(alpha);
-                        }
+                        controller.mAppsView.getActiveRecyclerView().setAlpha(alpha);
                         controller.getAppsViewPullbackAlpha().setValue(
                                 ALL_APPS_PULL_BACK_ALPHA_DEFAULT);
                     } else {
                         controller.getAppsViewPullbackAlpha().setValue(alpha);
-                        View activeRecyclerView = controller.mAppsView.getActiveRecyclerView();
-                        if (activeRecyclerView != null) {
-                            activeRecyclerView.setAlpha(
-                                    ALL_APPS_PULL_BACK_ALPHA_DEFAULT);
-                        }
+                        controller.mAppsView.getActiveRecyclerView().setAlpha(
+                                ALL_APPS_PULL_BACK_ALPHA_DEFAULT);
                     }
                 }
             };
@@ -185,7 +166,7 @@ public class AllAppsTransitionController
 
     private final Launcher mLauncher;
     private final AnimatedFloat mAllAppScale = new AnimatedFloat(this::onScaleProgressChanged);
-    private final int mNavScrimFlag, mStatusScrimFlag;
+    private final int mNavScrimFlag;
 
     @Nullable private Animator.AnimatorListener mAllAppsSearchBackAnimationListener;
 
@@ -216,11 +197,9 @@ public class AllAppsTransitionController
         DeviceProfile dp = mLauncher.getDeviceProfile();
         mProgress = 1f;
         mIsVerticalLayout = dp.isVerticalBarLayout();
-        mShouldShowAllAppsOnSheet = dp.shouldShowAllAppsOnSheet(mLauncher);
+        mShouldShowAllAppsOnSheet = dp.shouldShowAllAppsOnSheet();
         mNavScrimFlag = Themes.getAttrBoolean(l, R.attr.isMainColorDark)
                 ? FLAG_DARK_NAV : FLAG_LIGHT_NAV;
-        mStatusScrimFlag = Themes.getAttrBoolean(l, R.attr.isMainColorDark)
-                ? FLAG_DARK_STATUS : FLAG_LIGHT_STATUS;
 
         setShiftRange(dp.allAppsShiftRange);
         mAllAppScale.value = 1;
@@ -242,7 +221,7 @@ public class AllAppsTransitionController
             mLauncher.getWorkspace().getPageIndicator().setTranslationY(0);
         }
 
-        mShouldShowAllAppsOnSheet = dp.shouldShowAllAppsOnSheet(mLauncher);
+        mShouldShowAllAppsOnSheet = dp.shouldShowAllAppsOnSheet();
     }
 
     /**
@@ -262,12 +241,10 @@ public class AllAppsTransitionController
         getAppsViewProgressTranslationY().setValue(mProgress * shiftRange);
         mLauncher.onAllAppsTransition(1 - progress);
 
-        boolean hasNavScrim = progress < NAV_BAR_COLOR_FORCE_UPDATE_THRESHOLD
+        boolean hasScrim = progress < NAV_BAR_COLOR_FORCE_UPDATE_THRESHOLD
                 && mLauncher.getAppsView().getNavBarScrimHeight() > 0;
-        boolean hasStatusScrim = !mShouldShowAllAppsOnSheet
-                && progress < STATUS_BAR_COLOR_FORCE_UPDATE_THRESHOLD;
-        mLauncher.getSystemUiController().updateUiState(UI_STATE_ALL_APPS,
-                ((hasNavScrim ? mNavScrimFlag : 0) | (hasStatusScrim ? mStatusScrimFlag : 0)));
+        mLauncher.getSystemUiController().updateUiState(
+                UI_STATE_ALL_APPS, hasScrim ? mNavScrimFlag : 0);
     }
 
     public float getProgress() {
@@ -336,9 +313,8 @@ public class AllAppsTransitionController
         if (hasScaleEffect != mHasScaleEffect) {
             mHasScaleEffect = hasScaleEffect;
             if (mHasScaleEffect) {
-                // Do not disable clipping if drawer opening, otherwise we tank frame rate
-                if (scaleProgress < 0.95f)
-                    modifyAttributesOnViewTree(rv, mLauncher.getAppsView(), CLIP_CHILDREN_FALSE_MODIFIER);
+                modifyAttributesOnViewTree(rv, mLauncher.getAppsView(),
+                        CLIP_CHILDREN_FALSE_MODIFIER);
             } else {
                 restoreAttributesOnViewTree(rv, mLauncher.getAppsView(),
                         CLIP_CHILDREN_FALSE_MODIFIER);

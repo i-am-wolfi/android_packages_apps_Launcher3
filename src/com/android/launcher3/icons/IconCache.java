@@ -71,17 +71,12 @@ import com.android.launcher3.shortcuts.ShortcutRequest;
 import com.android.launcher3.util.ApplicationInfoWrapper;
 import com.android.launcher3.util.CancellableTask;
 import com.android.launcher3.util.ComponentKey;
-import com.android.launcher3.util.CustomAppNameStore;
 import com.android.launcher3.util.DaggerSingletonTracker;
-import com.android.launcher3.util.FlagOp;
 import com.android.launcher3.util.InstantAppResolver;
 import com.android.launcher3.util.PackageUserKey;
 import com.android.launcher3.widget.WidgetSections;
 import com.android.launcher3.widget.WidgetSections.WidgetSection;
-import com.android.launcher3.util.Executors;
-import com.android.launcher3.util.TaskSchedule;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -106,7 +101,6 @@ public class IconCache extends BaseIconCache {
     private static final String TAG = "Launcher.IconCache";
 
     private final LauncherApps mLauncherApps;
-    private final Context mContext;
     private final UserCache mUserManager;
     private final InstallSessionHelper mInstallSessionHelper;
     private final InstantAppResolver mInstantAppResolver;
@@ -123,14 +117,13 @@ public class IconCache extends BaseIconCache {
             InvariantDeviceProfile idp,
             @Nullable @Named("ICONS_DB") String dbFileName,
             UserCache userCache,
-            ThirdPartyIconProvider iconProvider,
+            LauncherIconProvider iconProvider,
             InstallSessionHelper installSessionHelper,
             LauncherIcons.IconPool iconPool,
             InstantAppResolver instantAppResolver,
             DaggerSingletonTracker lifecycle) {
         super(context, dbFileName, MODEL_EXECUTOR.getLooper(),
                 idp.fillResIconDpi, idp.iconBitmapSize, true /* inMemoryCache */, iconProvider);
-        mContext = context;
         mLauncherApps = context.getSystemService(LauncherApps.class);
         mUserManager = userCache;
         mInstallSessionHelper = installSessionHelper;
@@ -517,7 +510,6 @@ public class IconCache extends BaseIconCache {
         }
 
         Trace.beginSection("loadIconSubsectionWithFallback");
-        ArrayList<TaskSchedule.SafelyRunnable> tasksList = new ArrayList<>();
         // Fallback title and icon loading
         for (ComponentName cn : duplicateIconRequestsMap.keySet()) {
             IconRequestInfo<T> iconRequestInfo = duplicateIconRequestsMap.get(cn).get(0);
@@ -542,35 +534,30 @@ public class IconCache extends BaseIconCache {
                     entry.bitmap = icon;
                 }
                 entry.contentDescription = itemInfo.contentDescription;
-                TaskSchedule.SafelyRunnable runnable = new TaskSchedule.SafelyRunnable() {
-                    @Override
-                    public void onTaskRun() {
-                        if(loadFallbackIcon){
-                            loadFallbackIcon(
-                                    lai,
-                                    entry,
-                                    LauncherActivityCachingLogic.INSTANCE,
-                                    DEFAULT_LOOKUP_FLAG.withUsePackageIcon(false),
-                                    /* usePackageTitle= */ loadFallbackTitle,
-                                    cn,
-                                    sectionKey.first);
-                        }
-                        if(loadFallbackTitle &&TextUtils.isEmpty(entry.title)&&lai !=null){
-                            loadFallbackTitle(
-                                    lai,
-                                    entry,
-                                    LauncherActivityCachingLogic.INSTANCE,
-                                    sectionKey.first);
-                        }
-                        for(IconRequestInfo<T> iconRequest :duplicateIconRequestsMap.get(cn)){
-                            applyCacheEntry(entry, iconRequest.itemInfo);
-                        }
-                    }
-                };
-                tasksList.add(runnable);
+
+                if (loadFallbackIcon) {
+                    loadFallbackIcon(
+                            lai,
+                            entry,
+                            LauncherActivityCachingLogic.INSTANCE,
+                            DEFAULT_LOOKUP_FLAG.withUsePackageIcon(false),
+                            /* usePackageTitle= */ loadFallbackTitle,
+                            cn,
+                            sectionKey.first);
+                }
+                if (loadFallbackTitle && TextUtils.isEmpty(entry.title) && lai != null) {
+                    loadFallbackTitle(
+                            lai,
+                            entry,
+                            LauncherActivityCachingLogic.INSTANCE,
+                            sectionKey.first);
+                }
+
+                for (IconRequestInfo<T> iconRequest : duplicateIconRequestsMap.get(cn)) {
+                    applyCacheEntry(entry, iconRequest.itemInfo);
+                }
             }
         }
-        TaskSchedule.runTasks(tasksList, Executors.THREAD_POOL_EXECUTOR, Math.max(Runtime.getRuntime().availableProcessors() / 2, 2), 2000);
         Trace.endSection();
     }
 
@@ -614,22 +601,12 @@ public class IconCache extends BaseIconCache {
         if (bitmap == null) {
             return getDefaultIcon(user);
         }
-        FlagOp userFlagOp = getUserFlagOpLocked(user);
-        int currentFlags = bitmap.getFlags();
-        // Skip creating a new BitMap since identical
-        if (currentFlags == userFlagOp.apply(currentFlags)) {
-            return bitmap;
-        }
-        return bitmap.withFlags(userFlagOp);
+        return bitmap.withFlags(getUserFlagOpLocked(user));
     }
 
     protected void applyCacheEntry(@NonNull final CacheEntry entry,
             @NonNull final ItemInfoWithIcon info) {
         info.title = Utilities.trim(entry.title);
-        String customTitle = CustomAppNameStore.getCustomName(mContext, info);
-        if (customTitle != null) {
-            info.title = customTitle;
-        }
         info.contentDescription = entry.contentDescription;
         info.bitmap = entry.bitmap;
         // Clear any previously set appTitle, if the packageOverride is no longer valid
@@ -654,17 +631,8 @@ public class IconCache extends BaseIconCache {
         }
         info.appTitle = Utilities.trim(info.title);
         info.title = Utilities.trim(packageEntry.title);
-        customTitle = CustomAppNameStore.getCustomName(mContext, info);
-        if (customTitle != null) {
-            info.title = customTitle;
-        }
         info.contentDescription = packageEntry.contentDescription;
         info.bitmap = packageEntry.bitmap;
-    }
-
-    public synchronized void clearDb() {
-        clearMemoryCache();
-        iconDb.clear();
     }
 
     public void updateSessionCache(PackageUserKey key, PackageInstaller.SessionInfo info) {

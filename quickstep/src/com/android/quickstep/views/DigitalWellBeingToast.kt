@@ -127,9 +127,7 @@ constructor(
     }
 
     fun initialize() {
-        if (isDestroyed) {
-            return
-        }
+        check(!isDestroyed) { "Cannot re-initialize a destroyed toast" }
         setupTranslations()
         Executors.ORDERED_BG_EXECUTOR.execute {
             var usageLimit: AppUsageLimit? = null

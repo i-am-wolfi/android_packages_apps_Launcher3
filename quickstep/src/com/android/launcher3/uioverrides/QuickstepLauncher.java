@@ -57,13 +57,9 @@ import static com.android.launcher3.popup.SystemShortcut.ADD_TO_HOME_SCREEN;
 import static com.android.launcher3.popup.SystemShortcut.APP_INFO;
 import static com.android.launcher3.popup.SystemShortcut.BUBBLE_SHORTCUT;
 import static com.android.launcher3.popup.SystemShortcut.DONT_SUGGEST_APP;
-import static com.android.launcher3.popup.SystemShortcut.FLOATING;
 import static com.android.launcher3.popup.SystemShortcut.INSTALL;
-import static com.android.launcher3.popup.SystemShortcut.KILL_APP;
 import static com.android.launcher3.popup.SystemShortcut.PRIVATE_PROFILE_INSTALL;
 import static com.android.launcher3.popup.SystemShortcut.REMOVE;
-import static com.android.launcher3.popup.SystemShortcut.RENAME_APP;
-import static com.android.launcher3.popup.SystemShortcut.UNINSTALL;
 import static com.android.launcher3.popup.SystemShortcut.UNINSTALL_APP;
 import static com.android.launcher3.popup.SystemShortcut.WIDGETS;
 import static com.android.launcher3.taskbar.LauncherTaskbarUIController.ALL_APPS_PAGE_PROGRESS_INDEX;
@@ -76,7 +72,6 @@ import static com.android.launcher3.testing.shared.TestProtocol.OVERVIEW_STATE_O
 import static com.android.launcher3.testing.shared.TestProtocol.QUICK_SWITCH_STATE_ORDINAL;
 import static com.android.launcher3.util.DisplayController.CHANGE_ACTIVE_SCREEN;
 import static com.android.launcher3.util.DisplayController.CHANGE_NAVIGATION_MODE;
-import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 import static com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR;
 import static com.android.quickstep.util.AnimUtils.completeRunnableListCallback;
 import static com.android.quickstep.util.SplitAnimationTimings.TABLET_HOME_TO_SPLIT;
@@ -87,11 +82,9 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.AnimatorSet;
 import android.app.ActivityOptions;
-import android.app.AppGlobals;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentSender;
-import android.content.pm.IPackageManager;
 import android.content.pm.ShortcutInfo;
 import android.content.res.Configuration;
 import android.graphics.Rect;
@@ -106,7 +99,6 @@ import android.os.Trace;
 import android.os.UserHandle;
 import android.text.TextUtils;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.HapticFeedbackConstants;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -124,8 +116,6 @@ import androidx.annotation.BinderThread;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
-import androidx.core.view.WindowInsetsCompat;
-import androidx.core.view.WindowInsetsControllerCompat;
 
 import com.android.app.viewcapture.ViewCaptureFactory;
 import com.android.launcher3.AbstractFloatingView;
@@ -135,7 +125,6 @@ import com.android.launcher3.Flags;
 import com.android.launcher3.GestureNavContract;
 import com.android.launcher3.InvariantDeviceProfile;
 import com.android.launcher3.Launcher;
-import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.LauncherSettings.Favorites;
 import com.android.launcher3.LauncherState;
 import com.android.launcher3.QuickstepAccessibilityDelegate;
@@ -145,13 +134,11 @@ import com.android.launcher3.Utilities;
 import com.android.launcher3.Workspace;
 import com.android.launcher3.accessibility.LauncherAccessibilityDelegate;
 import com.android.launcher3.allapps.AllAppsRecyclerView;
-import com.android.launcher3.allapps.AllAppsStore;
 import com.android.launcher3.anim.AnimatorPlaybackController;
 import com.android.launcher3.anim.PendingAnimation;
 import com.android.launcher3.apppairs.AppPairIcon;
 import com.android.launcher3.appprediction.PredictionRowView;
 import com.android.launcher3.config.FeatureFlags;
-import com.android.launcher3.data.AppDatabase;
 import com.android.launcher3.desktop.DesktopRecentsTransitionController;
 import com.android.launcher3.hybridhotseat.HotseatPredictionController;
 import com.android.launcher3.logging.InstanceId;
@@ -168,7 +155,6 @@ import com.android.launcher3.statehandlers.DesktopVisibilityController;
 import com.android.launcher3.statemanager.StateManager;
 import com.android.launcher3.statemanager.StateManager.AtomicAnimationFactory;
 import com.android.launcher3.statemanager.StateManager.StateHandler;
-import com.android.launcher3.statemanager.StateManager.StateListener;
 import com.android.launcher3.taskbar.TaskbarInteractor;
 import com.android.launcher3.taskbar.TaskbarManager;
 import com.android.launcher3.taskbar.TaskbarUiState;
@@ -193,11 +179,9 @@ import com.android.launcher3.uioverrides.touchcontrollers.TwoButtonNavbarTouchCo
 import com.android.launcher3.util.ActivityOptionsWrapper;
 import com.android.launcher3.util.DisplayController;
 import com.android.launcher3.util.IntSet;
-import com.android.launcher3.util.ListenableRef;
 import com.android.launcher3.util.NavigationMode;
 import com.android.launcher3.util.ObjectWrapper;
 import com.android.launcher3.util.OverviewCommandHelperProtoLogProxy;
-import com.android.launcher3.util.PackageManagerHelper;
 import com.android.launcher3.util.PendingRequestArgs;
 import com.android.launcher3.util.PendingSplitSelectInfo;
 import com.android.launcher3.util.RunnableList;
@@ -207,7 +191,6 @@ import com.android.launcher3.util.SplitConfigurationOptions.SplitSelectSource;
 import com.android.launcher3.util.StableViewInfo;
 import com.android.launcher3.util.StartActivityParams;
 import com.android.launcher3.util.TouchController;
-import com.android.launcher3.util.WindowBlurState;
 import com.android.launcher3.views.FloatingIconView;
 import com.android.quickstep.BaseContainerInterface;
 import com.android.quickstep.LauncherActivityInterface;
@@ -233,7 +216,6 @@ import com.android.quickstep.util.TISBindHelper;
 import com.android.quickstep.util.unfold.LauncherUnfoldTransitionController;
 import com.android.quickstep.util.unfold.ProxyUnfoldTransitionProvider;
 import com.android.quickstep.views.FloatingTaskView;
-import com.android.quickstep.views.MemInfoView;
 import com.android.quickstep.views.OverviewActionsView;
 import com.android.quickstep.views.RecentsView;
 import com.android.quickstep.views.RecentsViewContainer;
@@ -266,24 +248,20 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
-        SystemShortcut.BubbleActivityStarter, AllAppsStore.OnUpdateListener {
+        SystemShortcut.BubbleActivityStarter {
     private static final boolean TRACE_LAYOUTS =
             SystemProperties.getBoolean("persist.debug.trace_layouts", false);
     private static final String TRACE_RELAYOUT_CLASS =
             SystemProperties.get("persist.debug.trace_request_layout_class", null);
 
     protected static final String RING_APPEAR_ANIMATION_PREFIX = "RingAppearAnimation\t";
-
-    private static boolean sIsNewProcess = true;
 
     private PredictedContainerInfo mAllAppsPredictions;
     private HotseatPredictionController mHotseatPredictionController;
@@ -327,10 +305,6 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
 
     private boolean mOverviewBlurEnabled;
 
-    private boolean mShouldUpdateSuspensions;
-
-    private MemInfoView mMemInfoView;
-
     private final TaskViewRecentsTouchContext mTaskViewRecentsTouchContext =
             new TaskViewRecentsTouchContext() {
                 @Override
@@ -350,35 +324,6 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
                 }
             };
 
-    private StateListener noStatusBarStateListener = new StateManager.StateListener<LauncherState>() {
-        @Override
-        public void onStateTransitionStart(LauncherState toState) {
-            if (toState == OVERVIEW) {
-                getWindow().getDecorView().getWindowInsetsController().show(WindowInsetsCompat.Type.statusBars());
-            }
-        }
-
-        @Override
-        public void onStateTransitionComplete(LauncherState finalState) {
-            if (finalState != OVERVIEW) {
-                getWindow().getDecorView().getWindowInsetsController().hide(WindowInsetsCompat.Type.statusBars());
-            }
-        }
-    };
-
-    private void setupBlurState() {
-        ListenableRef<Boolean> blurState = WindowBlurState.getInstance(this);
-        boolean blurEnabled = blurState.getValue();
-
-        // Recreate launcher if the blur enabled state changes
-        closeOnDestroy(blurState.forEach(MAIN_EXECUTOR, v -> {
-            if (v != blurEnabled) mWallpaperThemeManager.recreateToUpdateTheme();
-            return null;
-        }));
-        getTheme().applyStyle(blurEnabled ? R.style.FolderBlurStyle
-                : R.style.FolderBlurFallbackStyle, true);
-    }
-
     @Override
     protected LauncherOverlayManager getDefaultOverlay() {
         return new OverlayCallbackImpl(this);
@@ -387,7 +332,6 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
     @Override
     protected void setupViews() {
         getAppWidgetHolder().setOnViewCreationCallback(new QuickstepInteractionHandler(this));
-        setupBlurState();
         mDepthController = new DepthController(this);
         mOverviewBlurEnabled = isOverviewBackgroundBlurEnabled();
         getTheme().applyStyle(getOverviewBlurStyleResId(), true);
@@ -395,7 +339,6 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         mDepthController.setSurfaceTransactionApplier(getRootView());
 
         mActionsView = findViewById(R.id.overview_actions_view);
-        mMemInfoView = findViewById(R.id.meminfo);
         RecentsView<?, LauncherState> overviewPanel = getOverviewPanel();
         SystemUiProxy systemUiProxy = SystemUiProxy.INSTANCE.get(this);
         mSplitSelectStateController =
@@ -409,15 +352,13 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
                     getDepthController(), DesktopState.getInstance(this));
         }
         overviewPanel.init(mActionsView, mSplitSelectStateController,
-                mDesktopRecentsTransitionController, mMemInfoView);
+                mDesktopRecentsTransitionController);
         mSplitWithKeyboardShortcutController = new SplitWithKeyboardShortcutController(
                 this, mSplitSelectStateController);
         mSplitToWorkspaceController = new SplitToWorkspaceController(this,
                 mSplitSelectStateController);
         mActionsView.updateDimension(getDeviceProfile(), overviewPanel.getLastComputedTaskSize());
         mActionsView.updateVerticalMargin(DisplayController.getNavigationMode(this));
-        mMemInfoView.setDp(getDeviceProfile());
-        mMemInfoView.updateVerticalMargin(DisplayController.getNavigationMode(this));
 
         mAppTransitionManager = buildAppTransitionManager();
         mAppTransitionManager.registerRemoteAnimations();
@@ -441,8 +382,6 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
             mTaskbarUiState = TaskbarUiStateMonitor.INSTANCE.get(this)
                     .getTaskbarUiState(getDisplayId());
         }
-
-        getAppsView().getAppsStore().addUpdateListener(this);
     }
 
     @Override
@@ -604,8 +543,7 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
     public Stream<SystemShortcut.Factory> getSupportedShortcuts(ItemInfo itemInfo) {
         // Order matters as it affects order of appearance in popup container
         List<SystemShortcut.Factory> shortcuts = new ArrayList(Arrays.asList(
-                APP_INFO, WellbeingModel.SHORTCUT_FACTORY, mHotseatPredictionController,
-                RENAME_APP));
+                APP_INFO, WellbeingModel.SHORTCUT_FACTORY, mHotseatPredictionController));
         int container = itemInfo.container;
         if (canPinAppWithContextMenu()
                 && DisplayController.showDesktopTaskbarForFreeformDisplay(this)
@@ -615,20 +553,16 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         }
 
         shortcuts.addAll(getSplitShortcuts());
-        shortcuts.add(UNINSTALL);
-        shortcuts.add(WellbeingModel.PAUSE_APPS);
-        shortcuts.add(FLOATING);
         shortcuts.add(WIDGETS);
-        shortcuts.add(KILL_APP);
         shortcuts.add(INSTALL);
         // TODO(b/444744861): Update private space apps to have its own container.
         boolean isPinnable = itemInfo instanceof ItemInfoWithIcon info
                 && (info.runtimeStatusFlags & FLAG_NOT_PINNABLE) == 0;
-        if (LauncherPrefs.WORKSPACE_LOCK.get(this)
+        if (Utilities.isWorkspaceEditAllowed(this)
                 && (container == CONTAINER_HOTSEAT || container == CONTAINER_DESKTOP
                 || /* Folder */ container > 0)) {
             shortcuts.add(REMOVE);
-        } else if (LauncherPrefs.WORKSPACE_LOCK.get(this) && isPinnable
+        } else if (Utilities.isWorkspaceEditAllowed(this) && isPinnable
                 && (container == CONTAINER_ALL_APPS
                 || container == CONTAINER_ALL_APPS_PREDICTION)) {
             shortcuts.add(ADD_TO_HOME_SCREEN);
@@ -747,9 +681,6 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
 
     @Override
     public void onDestroy() {
-        if (!LauncherPrefs.SHOW_STATUS_BAR.get(this)) {
-            getStateManager().removeStateListener(noStatusBarStateListener);
-        }
         if (mAppTransitionManager != null) {
             mAppTransitionManager.onActivityDestroyed();
         }
@@ -898,8 +829,6 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        mShouldUpdateSuspensions = sIsNewProcess;
-        sIsNewProcess = false;
         if (savedInstanceState != null) {
             mPendingSplitSelectInfo = ObjectWrapper.unwrap(
                     savedInstanceState.getIBinder(PENDING_SPLIT_SELECT_INFO));
@@ -908,15 +837,10 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         mViewCapture = ViewCaptureFactory.getInstance(this).startCapture(getWindow());
         getWindow().addPrivateFlags(PRIVATE_FLAG_OPTIMIZE_MEASURE);
         QuickstepOnboardingPrefs.setup(this);
-        if (!LauncherPrefs.SHOW_STATUS_BAR.get(this)) {
-            getStateManager().addStateListener(noStatusBarStateListener);
-        }
         View.setTraceLayoutSteps(TRACE_LAYOUTS);
         View.setTracedRequestLayoutClassClass(TRACE_RELAYOUT_CLASS);
         OverviewComponentObserver.INSTANCE.get(this)
                 .addOverviewChangeListener(mOverviewChangeListener);
-
-        AppDatabase.INSTANCE.get(this).checkpointSync();
     }
 
     @Override
@@ -1406,10 +1330,6 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         return mActionsView;
     }
 
-    public MemInfoView getMemInfoView () {
-        return mMemInfoView;
-    }
-
     @Override
     protected void closeOpenViews(boolean animate) {
         super.closeOpenViews(animate);
@@ -1518,9 +1438,6 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
             getDragLayer().recreateControllers();
             if (mActionsView != null) {
                 mActionsView.updateVerticalMargin(info.getNavigationMode());
-            }
-            if (mMemInfoView != null) {
-                mMemInfoView.updateVerticalMargin(info.getNavigationMode());
             }
         }
     }
@@ -1713,15 +1630,6 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
         mBubbleBarLocation = bubbleBarLocation;
     }
 
-    @Override
-    public void onAppsUpdated() {
-        if (mShouldUpdateSuspensions) {
-            // We do this only once.
-            mShouldUpdateSuspensions = false;
-            updateSuspensions();
-        }
-    }
-
     /**
      * Similar to {@link #getFirstHomeElementForAppClose} but also matches all apps if its visible
      */
@@ -1840,48 +1748,5 @@ public class QuickstepLauncher extends Launcher implements RecentsViewContainer,
     @Override
     public void goToRecentsState(RecentsState recentsState, boolean animated) {
         getStateManager().goToState(RecentsStateUtilsKt.toLauncherState(recentsState), animated);
-    }
-
-    /**
-     * Reapply suspensions to apps we paused, so as to update suspend dialogs. This is necessary
-     * to ensure that the resources used by the dialog are still correct, particularly in the event
-     * that our app was updated after the suspension took place and may have different resource IDs.
-     */
-    private void updateSuspensions() {
-        final Map<UserHandle, List<String>> pausedAppsByUser =
-                Stream.of(getAppsView().getAppsStore().getApps())
-                        .filter(i -> getPackageName().equals(
-                                getSuspendingPackage(i.getTargetPackage(), i.user)))
-                        .collect(Collectors.groupingBy((ItemInfo item) -> item.user,
-                                Collectors.mapping(item -> item.getTargetPackage(),
-                                        Collectors.toList())));
-
-        pausedAppsByUser.forEach((targetUser, packages) -> {
-            Log.d(Launcher.TAG,
-                    "Re-suspending apps to update suspend dialogs for user " + targetUser
-                            + ": " + packages);
-            try {
-                WellbeingModel.suspendPackages(this, packages, targetUser);
-            } catch (Exception e) {
-                Log.e(Launcher.TAG, "Failed to re-suspend packages for user " + targetUser + "!",
-                        e);
-            }
-        });
-    }
-
-    /**
-     * Returns the suspending package for a target app and a given user.
-     */
-    private String getSuspendingPackage(@NonNull final String packageName,
-            @NonNull final UserHandle user) {
-        final IPackageManager ipm = AppGlobals.getPackageManager();
-        final int userId = user.getIdentifier();
-        try {
-            return ipm.getSuspendingPackage(packageName, userId);
-        } catch (Exception e) {
-            Log.e(Launcher.TAG, "Could not determine if " + user + " package " + packageName
-                    + " was suspended by us!", e);
-        }
-        return null;
     }
 }

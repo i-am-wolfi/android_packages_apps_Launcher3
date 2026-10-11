@@ -41,7 +41,6 @@ import static com.android.launcher3.taskbar.TaskbarAutohideSuspendController.FLA
 import static com.android.launcher3.taskbar.TaskbarAutohideSuspendController.FLAG_AUTOHIDE_SUSPEND_FULLSCREEN;
 import static com.android.launcher3.taskbar.TaskbarDesktopExperienceFlags.enableAutoStashConnectedDisplayTaskbar;
 import static com.android.launcher3.taskbar.TaskbarManagerImpl.ENABLE_TASKBAR_URI;
-import static com.android.launcher3.taskbar.TaskbarManagerImpl.NAVBAR_IME_SPACE_URI;
 import static com.android.launcher3.taskbar.TaskbarManagerImpl.NAVIGATION_BAR_HINT_URI;
 import static com.android.launcher3.taskbar.TaskbarStashController.FLAG_IN_SECONDARY_LAUNCHER_ON_CD;
 import static com.android.launcher3.taskbar.TaskbarStashController.FLAG_STASHED_IN_APP_AUTO;
@@ -54,6 +53,7 @@ import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_N
 import static com.android.systemui.shared.system.QuickStepContract.SYSUI_STATE_VOICE_INTERACTION_WINDOW_SHOWING;
 import static com.android.wm.shell.Flags.enableBubbleBar;
 import static com.android.wm.shell.Flags.enableBubbleBarOnPhones;
+import static com.android.wm.shell.Flags.enableTinyTaskbar;
 
 import static java.lang.invoke.MethodHandles.Lookup.PROTECTED;
 
@@ -311,6 +311,8 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
                 mDeviceProfile.inv.numRows,
                 mDeviceProfile.inv.numColumns);
 
+        mImeDrawsImeNavBar = getBoolByName(IME_DRAWS_IME_NAV_BAR_RES_NAME, getResources(), false)
+                && isPrimaryDisplay();
         mIsSafeModeEnabled = TraceHelper.allowIpcs("isSafeMode",
                 () -> getPackageManager().isSafeMode());
 
@@ -558,9 +560,6 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
         mNavMode = getNavigationMode();
 
         SettingsCache settingsCache = SettingsCache.INSTANCE.get(this);
-        mImeDrawsImeNavBar = getBoolByName(IME_DRAWS_IME_NAV_BAR_RES_NAME, getResources(), false)
-                && isPrimaryDisplay()
-                && settingsCache.getValue(NAVBAR_IME_SPACE_URI);
         mIsUserSetupComplete = settingsCache.getValue(Secure.getUriFor(Secure.USER_SETUP_COMPLETE));
         mIsNavBarKidsMode = settingsCache.getValue(Secure.getUriFor(Secure.NAV_BAR_KIDS_MODE));
         mIsNavBarForceVisible = mIsNavBarKidsMode;
@@ -646,9 +645,8 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
      * single window for taskbar and navbar.
      */
     public boolean isPhoneMode() {
-        if (!mDeviceProfile.getDeviceProperties().isPhone() &&
-                !(SettingsCache.INSTANCE.get(this).getIntValue(ENABLE_TASKBAR_URI,
-                mDeviceProfile.getDeviceProperties().isTablet() ? 1 : 0) != 0)) {
+        if (mDeviceProfile.isTaskbarPresent &&
+                !SettingsCache.INSTANCE.get(this).getValue(ENABLE_TASKBAR_URI)) {
             return true;
         }
         return mDeviceProfile.getDeviceProperties().isPhone() && !mDeviceProfile.isTaskbarPresent;
@@ -679,7 +677,7 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
 
     /** Returns {@code true} iff a tiny version of taskbar is shown on phone. */
     public boolean isTinyTaskbar() {
-        return mDeviceProfile.getDeviceProperties().isPhone() && mDeviceProfile.isTaskbarPresent;
+        return enableTinyTaskbar() && mDeviceProfile.getDeviceProperties().isPhone() && mDeviceProfile.isTaskbarPresent;
     }
 
     public boolean isBubbleBarOnPhone() {
@@ -1469,12 +1467,14 @@ public class TaskbarActivityContext extends BaseTaskbarContext {
     public int getDefaultTaskbarWindowSize() {
         Resources resources = getResources();
 
+        if (isGestureNav() && !SettingsCache.INSTANCE.get(this).getValue(NAVIGATION_BAR_HINT_URI)) {
+            return 0;
+        }
+
         if (isPhoneMode()) {
             return isThreeButtonNav() ?
                     resources.getDimensionPixelSize(R.dimen.taskbar_phone_size) :
-                    SettingsCache.INSTANCE.get(this).getValue(NAVIGATION_BAR_HINT_URI) ?
-                    resources.getDimensionPixelSize(R.dimen.taskbar_stashed_size) :
-                    0;
+                    resources.getDimensionPixelSize(R.dimen.taskbar_stashed_size);
         }
 
         int bubbleBarTop = mControllers.bubbleControllers.map(bubbleControllers ->

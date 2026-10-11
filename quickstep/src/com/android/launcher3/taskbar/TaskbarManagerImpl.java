@@ -41,7 +41,6 @@ import static com.android.launcher3.util.DisplayController.CHANGE_ROTATION;
 import static com.android.launcher3.util.DisplayController.CHANGE_SHOW_LOCKED_TASKBAR;
 import static com.android.launcher3.util.DisplayController.CHANGE_TASKBAR_PINNING;
 import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
-import static com.android.launcher3.util.Executors.THREAD_POOL_EXECUTOR;
 import static com.android.launcher3.util.Executors.UI_HELPER_EXECUTOR;
 import static com.android.launcher3.util.FlagDebugUtils.formatFlagChange;
 import static com.android.launcher3.util.SimpleBroadcastReceiver.actionsFilter;
@@ -78,7 +77,6 @@ import android.view.MotionEvent;
 import android.view.WindowManager;
 import android.view.WindowManagerGlobal;
 import android.widget.FrameLayout;
-import android.widget.Toast;
 import android.window.DesktopExperienceFlags;
 
 import androidx.annotation.NonNull;
@@ -97,7 +95,6 @@ import com.android.launcher3.LauncherInteractor;
 import com.android.launcher3.LauncherPrefChangeListener;
 import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.R;
-import com.android.launcher3.Utilities;
 import com.android.launcher3.anim.AnimatorListeners;
 import com.android.launcher3.anim.AnimatorPlaybackController;
 import com.android.launcher3.statehandlers.DesktopVisibilityController;
@@ -133,9 +130,7 @@ import kotlinx.coroutines.CoroutineDispatcher;
 
 import java.io.PrintWriter;
 import java.lang.ref.WeakReference;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.StringJoiner;
@@ -184,21 +179,6 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
 
     public static final Uri FORCE_SHOW_NAVBAR_URI = LineageSettings.System.getUriFor(
             LineageSettings.System.FORCE_SHOW_NAVBAR);
-
-    public static final Uri NAVIGATIONBAR_KEY_ORDER_URI = Settings.Secure.getUriFor(
-            Settings.Secure.NAVIGATIONBAR_KEY_ORDER);
-
-    public static final Uri NAV_BAR_LAYOUT_URI = Settings.Secure.getUriFor(
-            Settings.Secure.NAVBAR_LAYOUT_MODE);
-
-    public static final Uri GESTURE_NAVBAR_LENGTH_MODE_URI = Settings.System.getUriFor(
-            Settings.System.GESTURE_NAVBAR_LENGTH_MODE);
-
-    public static final Uri GESTURE_NAVBAR_HEIGHT_MODE_URI = Settings.System.getUriFor(
-            Settings.System.GESTURE_NAVBAR_HEIGHT_MODE);
-
-    public static final Uri NAVBAR_IME_SPACE_URI = Settings.Secure.getUriFor(
-            Settings.Secure.NAVBAR_IME_SPACE);
 
     public static final LooperExecutor TASKBAR_UI_THREAD =
             new LooperExecutor("TASKBAR_UI_THREAD", THREAD_PRIORITY_FOREGROUND);
@@ -356,7 +336,7 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
         recreateTaskbars();
     };
 
-    private final SettingsCache.OnChangeListener mOnTaskBarChangeListener;
+    private final SettingsCache.OnChangeListener mOnTaskBarChangeListener = c -> System.exit(0);
 
     private final DesktopVisibilityController.TaskbarDesktopModeListener
             mTaskbarDesktopModeListener =
@@ -483,11 +463,6 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
         mNavCallbacks = navCallbacks;
         mDisplaysWithDecorationsRepositoryCompat = displaysWithDecorationsRepositoryCompat;
 
-        mOnTaskBarChangeListener = c -> {
-            Toast.makeText(mBaseContext, R.string.restarting_launcher_changes, Toast.LENGTH_SHORT).show();
-            Utilities.restart();
-        };
-
         // Set up primary display.
         debugPrimaryTaskbar("TaskbarManager constructor");
         mDisplayManager = mBaseContext.getSystemService(DisplayManager.class);
@@ -511,16 +486,6 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
                 .register(NAVIGATION_BAR_HINT_URI, mOnTaskBarChangeListener);
         SettingsCache.INSTANCE.get(mPrimaryWindowContext)
                 .register(FORCE_SHOW_NAVBAR_URI, mOnTaskBarChangeListener);
-        SettingsCache.INSTANCE.get(mPrimaryWindowContext)
-                .register(NAVIGATIONBAR_KEY_ORDER_URI, mOnTaskBarChangeListener);
-        SettingsCache.INSTANCE.get(mPrimaryWindowContext)
-                .register(NAV_BAR_LAYOUT_URI, mOnTaskBarChangeListener);
-        SettingsCache.INSTANCE.get(mPrimaryWindowContext)
-                .register(GESTURE_NAVBAR_LENGTH_MODE_URI, mOnTaskBarChangeListener);
-        SettingsCache.INSTANCE.get(mPrimaryWindowContext)
-                .register(GESTURE_NAVBAR_HEIGHT_MODE_URI, mOnTaskBarChangeListener);
-        SettingsCache.INSTANCE.get(mPrimaryWindowContext)
-                .register(NAVBAR_IME_SPACE_URI, mOnTaskBarChangeListener);
         if (DesktopExperienceFlags.ENABLE_SYS_DECORS_CALLBACKS_VIA_WM.isTrue()
                 && DesktopExperienceFlags.ENABLE_DISPLAY_CONTENT_MODE_MANAGEMENT.isTrue()) {
             displaysWithDecorationsRepositoryCompat
@@ -826,29 +791,12 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
      * we fully want to destroy existing taskbars and create all desired new ones.
      * In other case (folding/unfolding) we don't need to remove and add window.
      */
-    public void recreateTaskbars() {
-        THREAD_POOL_EXECUTOR.execute(() -> {
-            List<Integer> displayIds;
-            synchronized (mWindowContexts) {
-                displayIds = new ArrayList<>();
-                for (int i = 0; i < mWindowContexts.size(); i++) {
-                    displayIds.add(mWindowContexts.keyAt(i));
-                }
-            }
-            for (int displayId : displayIds) {
-                recreateTaskbarForDisplayAsync(displayId);
-            }
-        });
-    }
-
-    private void recreateTaskbarForDisplayAsync(int displayId) {
-        DeviceProfile dp = getDeviceProfile(displayId);
-        boolean displayExists = getDisplay(displayId) != null;
-        MAIN_EXECUTOR.post(() -> {
-            if (dp != null && displayExists) {
-                recreateTaskbarForDisplay(displayId, 0);
-            }
-        });
+    public synchronized void recreateTaskbars() {
+        for (int i = 0; i < mWindowContexts.size(); i++) {
+            int displayId = mWindowContexts.keyAt(i);
+            debugTaskbarManager("recreateTaskbars", displayId);
+            recreateTaskbarForDisplay(displayId, 0);
+        }
     }
 
     private void attachPinningSharedPreferenceChangeListener(Context context) {
@@ -1275,16 +1223,6 @@ public class TaskbarManagerImpl implements DisplayDecorationListener {
                 .unregister(NAVIGATION_BAR_HINT_URI, mOnTaskBarChangeListener);
         SettingsCache.INSTANCE.get(mPrimaryWindowContext)
                 .unregister(FORCE_SHOW_NAVBAR_URI, mOnTaskBarChangeListener);
-        SettingsCache.INSTANCE.get(mPrimaryWindowContext)
-                .unregister(NAVIGATIONBAR_KEY_ORDER_URI, mOnTaskBarChangeListener);
-        SettingsCache.INSTANCE.get(mPrimaryWindowContext)
-                .unregister(NAV_BAR_LAYOUT_URI, mOnTaskBarChangeListener);
-        SettingsCache.INSTANCE.get(mPrimaryWindowContext)
-                .unregister(GESTURE_NAVBAR_LENGTH_MODE_URI, mOnTaskBarChangeListener);
-        SettingsCache.INSTANCE.get(mPrimaryWindowContext)
-                .unregister(GESTURE_NAVBAR_HEIGHT_MODE_URI, mOnTaskBarChangeListener);
-        SettingsCache.INSTANCE.get(mPrimaryWindowContext)
-                .unregister(NAVBAR_IME_SPACE_URI, mOnTaskBarChangeListener);
         if (DesktopExperienceFlags.ENABLE_SYS_DECORS_CALLBACKS_VIA_WM.isTrue()
                 && DesktopExperienceFlags.ENABLE_DISPLAY_CONTENT_MODE_MANAGEMENT.isTrue()) {
             mDisplaysWithDecorationsRepositoryCompat.unregisterDisplayDecorationListener(this);

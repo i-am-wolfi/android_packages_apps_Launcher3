@@ -17,8 +17,6 @@ package com.android.quickstep
 
 import android.app.ActivityManager
 import android.content.Context
-import android.content.SharedPreferences
-import android.content.SharedPreferences.OnSharedPreferenceChangeListener
 import android.graphics.Bitmap
 import android.graphics.drawable.Drawable
 import android.os.UserHandle
@@ -27,10 +25,8 @@ import androidx.annotation.WorkerThread
 import androidx.core.graphics.drawable.toDrawable
 import com.android.launcher3.Flags.enableRefactorTaskThumbnail
 import com.android.launcher3.Flags.enableTaskbarRecentsThemedIcons
-import com.android.launcher3.LauncherPrefs
 import com.android.launcher3.R
 import com.android.launcher3.Utilities
-import com.android.launcher3.customization.IconDatabase.KEY_ICON_PACK
 import com.android.launcher3.icons.BaseIconFactory
 import com.android.launcher3.icons.BaseIconFactory.IconOptions
 import com.android.launcher3.icons.BitmapInfo
@@ -60,11 +56,9 @@ class TaskIconCache(
     private val context: Context,
     private val bgExecutor: Executor,
     private val iconProvider: IconProvider,
-    private val displayController: DisplayController,
+    displayController: DisplayController,
     val dispatcherProvider: DispatcherProvider,
-) : TaskIconDataSource, DisplayController.DisplayInfoChangeListener,
-    SharedPreferences.OnSharedPreferenceChangeListener, AutoCloseable {
-
+) : TaskIconDataSource, DisplayInfoChangeListener {
     private val recentsIconCacheSize = context.resources.getInteger(R.integer.recentsIconCacheSize)
     private var iconCache: TaskKeyLruCache<TaskCacheEntry>? = null
     // TODO: b/431811298 - Make non-null when flag is cleaned up.
@@ -92,23 +86,10 @@ class TaskIconCache(
         // TODO (b/397205964): this will need to be updated when we support caches for different
         //  displays.
         displayController.addChangeListener(this)
-        LauncherPrefs.getPrefs(context).registerOnSharedPreferenceChangeListener(this)
-    }
-
-    override fun close() {
-        displayController.removeChangeListener(this)
-        LauncherPrefs.getPrefs(context).unregisterOnSharedPreferenceChangeListener(this)
-        bgExecutor.execute { resetFactory() }
     }
 
     override fun onDisplayInfoChanged(context: Context, info: DisplayController.Info, flags: Int) {
         if ((flags and DisplayController.CHANGE_DENSITY) != 0) {
-            clearCache()
-        }
-    }
-
-    override fun onSharedPreferenceChanged(prefs: SharedPreferences, key: String?) {
-        if (key == KEY_ICON_PACK) {
             clearCache()
         }
     }
@@ -416,10 +397,6 @@ class TaskIconCache(
         _iconFactory = null
         bitmapInfoCache?.evictAll()
         iconCache?.evictAll()
-        synchronized(defaultIcons) {
-            defaultIcons.clear()
-            defaultIconBase = null
-        }
     }
 
     data class TaskCacheEntry(

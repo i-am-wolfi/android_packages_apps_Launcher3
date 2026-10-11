@@ -27,6 +27,7 @@ import android.graphics.Rect;
 import android.os.VibrationEffect;
 import android.view.MotionEvent;
 import android.view.animation.Interpolator;
+
 import com.android.app.animation.Interpolators;
 import com.android.launcher3.AbstractFloatingView;
 import com.android.launcher3.LauncherAnimUtils;
@@ -41,7 +42,6 @@ import com.android.launcher3.util.FlingBlockCheck;
 import com.android.launcher3.util.TouchController;
 import com.android.launcher3.util.VibratorWrapper;
 import com.android.launcher3.views.BaseDragLayer;
-import com.android.quickstep.LockedTaskManager;
 import com.android.quickstep.orientation.RecentsPagedOrientationHandler;
 import com.android.quickstep.util.VibrationConstants;
 import com.android.quickstep.views.RecentsView;
@@ -91,7 +91,6 @@ public class TaskViewTouchControllerDeprecated<
     private Float mOverrideVelocity = null;
 
     private TaskView mTaskBeingDragged;
-    private float mTaskDragStartTranslationZ = 0f;
 
     private boolean mIsDismissHapticRunning = false;
 
@@ -131,39 +130,6 @@ public class TaskViewTouchControllerDeprecated<
         return mTaskViewRecentsTouchContext.isRecentsInteractive();
     }
 
-    /**
-     * Returns the topmost TaskView under the event (prefers larger Z, then later draw order).
-     * This prevents dragging the wrong card when task views overlap.
-     */
-    private TaskView findTopMostTaskUnderEvent(MotionEvent ev) {
-        if (mTaskViewRecentsTouchContext.isRecentsModal()) {
-            return null;
-        }
-
-        final BaseDragLayer dragLayer = mContainer.getDragLayer();
-        TaskView best = null;
-        float bestZ = Float.NEGATIVE_INFINITY;
-        int bestIndex = Integer.MIN_VALUE;
-        final float eps = 1e-4f;
-
-        for (TaskView taskView : mRecentsView.getTaskViews()) {
-            if (!mRecentsView.isTaskViewVisible(taskView)) continue;
-            if (!dragLayer.isEventOverView(taskView, ev)) continue;
-
-            final float z = taskView.getZ();
-            final int index = mRecentsView.indexOfChild(taskView);
-
-            if (best == null
-                    || z > bestZ + eps
-                    || (Math.abs(z - bestZ) <= eps && index > bestIndex)) {
-                best = taskView;
-                bestZ = z;
-                bestIndex = index;
-            }
-        }
-        return best;
-    }
-
     @Override
     public void onAnimationCancel(Animator animation) {
         if (mCurrentAnimation != null && animation == mCurrentAnimation.getTarget()) {
@@ -192,28 +158,37 @@ public class TaskViewTouchControllerDeprecated<
                 directionsToDetectScroll = DIRECTION_BOTH;
                 ignoreSlopWhenSettling = true;
             } else {
-                mTaskBeingDragged = findTopMostTaskUnderEvent(ev);
+                mTaskBeingDragged = null;
 
-                if (mTaskBeingDragged != null) {
-                    int upDirection = mRecentsView.getPagedOrientationHandler()
-                            .getUpDirection(mIsRtl);
+                for (TaskView taskView : mRecentsView.getTaskViews()) {
+                    if (mRecentsView.isTaskViewVisible(taskView) && mContainer.getDragLayer()
+                            .isEventOverView(taskView, ev)) {
+                        // Disable swiping up and down if the task overlay is modal.
+                        if (mTaskViewRecentsTouchContext.isRecentsModal()) {
+                            mTaskBeingDragged = null;
+                            break;
+                        }
+                        mTaskBeingDragged = taskView;
+                        int upDirection = mRecentsView.getPagedOrientationHandler()
+                                .getUpDirection(mIsRtl);
 
-                    // The task can be dragged up to dismiss it.
-                    mAllowGoingUp = true;
+                        // The task can be dragged up to dismiss it
+                        mAllowGoingUp = true;
 
-                    // The task can be dragged down to open it if:
-                    // - It's the current page
-                    // - We support gestures to enter overview
-                    // - It's the focused task if in grid view
-                    // - The task is snapped
-                    mAllowGoingDown = mTaskBeingDragged == mRecentsView.getCurrentPageTaskView()
-                            && DisplayController.getNavigationMode(mContainer).hasGestures
-                            && (!mRecentsView.showAsGrid() || mTaskBeingDragged.isLargeTile())
-                            && mRecentsView.isTaskInExpectedScrollPosition(mTaskBeingDragged);
+                        // The task can be dragged down to open it if:
+                        // - It's the current page
+                        // - We support gestures to enter overview
+                        // - It's the focused task if in grid view
+                        // - The task is snapped
+                        mAllowGoingDown = taskView == mRecentsView.getCurrentPageTaskView()
+                                && DisplayController.getNavigationMode(mContainer).hasGestures
+                                && (!mRecentsView.showAsGrid() || mTaskBeingDragged.isLargeTile())
+                                && mRecentsView.isTaskInExpectedScrollPosition(taskView);
 
-                    directionsToDetectScroll = mAllowGoingDown ? DIRECTION_BOTH : upDirection;
+                        directionsToDetectScroll = mAllowGoingDown ? DIRECTION_BOTH : upDirection;
+                        break;
+                    }
                 }
-
                 if (mTaskBeingDragged == null) {
                     mNoIntercept = true;
                     debugLog(TAG, "Not intercepting touch, no task to drag.");
@@ -262,43 +237,27 @@ public class TaskViewTouchControllerDeprecated<
         long maxDuration = 2 * secondaryLayerDimension;
         int verticalFactor = orientationHandler.getTaskDragDisplacementFactor(mIsRtl);
         int secondaryTaskDimension = orientationHandler.getSecondaryDimension(mTaskBeingDragged);
-
+        // The interpolator controlling the most prominent visual movement. We use this to determine
+        // whether we passed SUCCESS_TRANSITION_PROGRESS.
         final Interpolator currentInterpolator;
         PendingAnimation pa;
-
         if (goingUp) {
-            // Build the full dismiss animation up front so the user's drag drives both
-            // the dismissed card AND the gap-fill translations on the remaining cards in
-            // lockstep via setPlayFraction(). This is the AOSP path; the previous
-            // "simple animation only on the dragged card during drag, swap to full
-            // animation on lift" approach (commit de4afeb88c) caused a discontinuity on
-            // lift because the dragged card's secondary translation and the other cards'
-            // dismiss translations jumped from their simple-animation values to the full
-            // animation's values at the swap point. Building the full animation from the
-            // start keeps the gesture continuous and reversible (cancel just plays the
-            // animation back to progress=0).
             currentInterpolator = Interpolators.LINEAR;
             pa = new PendingAnimation(maxDuration);
             mRecentsView.createTaskDismissAnimation(pa, mTaskBeingDragged,
                     true /* animateTaskView */, true /* removeTask */, maxDuration,
-                    false /* dismissingForSplitSelection */, null /* gridEndData */);
+                    false /* dismissingForSplitSelection*/, null /* gridEndData */);
 
             mEndDisplacement = -secondaryTaskDimension;
         } else {
-            // Drag-down uses translation with secondaryDismissTranslationProperty for lock
-            currentInterpolator = Interpolators.LINEAR;
-            pa = new PendingAnimation(maxDuration);
+            currentInterpolator = Interpolators.ZOOM_IN;
+            pa = mRecentsView.createTaskLaunchAnimation(
+                    mTaskBeingDragged, maxDuration, currentInterpolator);
 
-            // Translate down by 40% of task height using the dismiss property (for neighbor settle)
-            float maxLockDisplacement = -secondaryTaskDimension * 0.4f * verticalFactor;
-            pa.setFloat(mTaskBeingDragged,
-                    mTaskBeingDragged.getSecondaryDismissTranslationProperty(),
-                    maxLockDisplacement,
-                    Interpolators.LINEAR);
-
-            mEndDisplacement = maxLockDisplacement;
+            // Since the thumbnail is what is filling the screen, based the end displacement on it.
+            mTaskBeingDragged.getThumbnailBounds(mTempRect, /*relativeToDragLayer=*/true);
+            mEndDisplacement = secondaryLayerDimension - mTempRect.bottom;
         }
-
         mEndDisplacement *= verticalFactor;
         mCurrentAnimation = pa.createPlaybackController();
 
@@ -316,20 +275,8 @@ public class TaskViewTouchControllerDeprecated<
         if (!mDraggingEnabled) return;
         debugLog(TAG, "Handling touch.");
 
-        // Bring the dragged task above neighbors during the gesture; restore in clearState().
-        if (mTaskBeingDragged != null) {
-            mTaskDragStartTranslationZ = mTaskBeingDragged.getTranslationZ();
-            mTaskBeingDragged.setTranslationZ(Math.max(mTaskDragStartTranslationZ, 0.1f));
-        }
-
         RecentsPagedOrientationHandler orientationHandler =
                 mRecentsView.getPagedOrientationHandler();
-        boolean isGoingDown = !orientationHandler.isGoingUp(startDisplacement, mIsRtl);
-        if (isGoingDown && mTaskBeingDragged != null && mTaskBeingDragged.isRunningTask()
-                && mRecentsView.getEnableDrawingLiveTile()) {
-            mRecentsView.setEnableDrawingLiveTile(false);
-        }
-
         if (mCurrentAnimation == null) {
             reInitAnimationController(orientationHandler.isGoingUp(startDisplacement, mIsRtl));
             mDisplacementShift = 0;
@@ -350,7 +297,6 @@ public class TaskViewTouchControllerDeprecated<
         float totalDisplacement = displacement + mDisplacementShift;
         boolean isGoingUp = totalDisplacement == 0 ? mCurrentAnimationIsGoingUp :
                 orientationHandler.isGoingUp(totalDisplacement, mIsRtl);
-
         if (isGoingUp != mCurrentAnimationIsGoingUp) {
             reInitAnimationController(isGoingUp);
             mFlingBlockCheck.blockFling();
@@ -358,9 +304,34 @@ public class TaskViewTouchControllerDeprecated<
             mFlingBlockCheck.onEvent();
         }
 
-        // Drag-up matches drag-down: always track finger across the full range.
-        mCurrentAnimation.setPlayFraction(
-                Utilities.boundToRange(totalDisplacement * mProgressMultiplier, 0, 1));
+        if (isGoingUp) {
+            if (mCurrentAnimation.getProgressFraction() < ANIMATION_PROGRESS_FRACTION_MIDPOINT) {
+                // Halve the value when dismissing, as we are animating the drag across the full
+                // length for only the first half of the progress
+                mCurrentAnimation.setPlayFraction(
+                        Utilities.boundToRange(totalDisplacement * mProgressMultiplier / 2, 0, 1));
+            } else {
+                // Set mOverrideVelocity to control task dismiss velocity in onDragEnd
+                int velocityDimenId = R.dimen.default_task_dismiss_drag_velocity;
+                if (mRecentsView.showAsGrid()) {
+                    if (mTaskBeingDragged.isLargeTile()) {
+                        velocityDimenId =
+                                R.dimen.default_task_dismiss_drag_velocity_grid_focus_task;
+                    } else {
+                        velocityDimenId = R.dimen.default_task_dismiss_drag_velocity_grid;
+                    }
+                }
+                mOverrideVelocity = -mTaskBeingDragged.getResources().getDimension(velocityDimenId);
+
+                // Once halfway through task dismissal interpolation, switch from reversible
+                // dragging-task animation to playing the remaining task translation animations,
+                // while this is in progress disable dragging.
+                mDraggingEnabled = false;
+            }
+        } else {
+            mCurrentAnimation.setPlayFraction(
+                    Utilities.boundToRange(totalDisplacement * mProgressMultiplier, 0, 1));
+        }
 
         return true;
     }
@@ -392,37 +363,6 @@ public class TaskViewTouchControllerDeprecated<
         } else {
             goingToEnd = interpolatedProgress > SUCCESS_TRANSITION_PROGRESS;
         }
-
-        // No swap-on-lift: reInitAnimationController already built the full dismiss
-        // animation, so the controller plays continuously from `progress` to either 0
-        // (cancel) or 1 (success) without any discontinuity.
-
-        if (!mCurrentAnimationIsGoingUp && goingToEnd) {
-            // Swipe-down complete: toggle lock state
-            String packageName = mTaskBeingDragged.getFirstTask() != null
-                    ? mTaskBeingDragged.getFirstTask().key.getPackageName() : null;
-            if (packageName != null) {
-                LockedTaskManager ltm = LockedTaskManager.getInstance(mContainer);
-                boolean wasLocked = mTaskBeingDragged.isLocked();
-                ltm.setPackageLocked(packageName, !wasLocked);
-                mTaskBeingDragged.updateLockState(packageName);
-            }
-            if (!mIsDismissHapticRunning) {
-                VibratorWrapper.INSTANCE.get(mContainer).vibrate(
-                        TASK_DISMISS_VIBRATION_PRIMITIVE,
-                        TASK_DISMISS_VIBRATION_PRIMITIVE_SCALE,
-                        TASK_DISMISS_VIBRATION_FALLBACK);
-                mIsDismissHapticRunning = true;
-            }
-            // Animate back to original position (the animation already handles the reverse)
-            long lockAnimDuration = BaseSwipeDetector.calculateDuration(velocity, progress);
-            mCurrentAnimation.setEndAction(this::clearState);
-            mCurrentAnimation.startWithVelocity(mContainer, false, Math.abs(velocity),
-                    mEndDisplacement, lockAnimDuration);
-            mDraggingEnabled = true;
-            return;
-        }
-
         long animationDuration = BaseSwipeDetector.calculateDuration(
                 velocity, goingToEnd ? (1 - progress) : progress);
         if (blockedFling && !goingToEnd) {
@@ -450,22 +390,6 @@ public class TaskViewTouchControllerDeprecated<
         mDetector.finishedScrolling();
         mDetector.setDetectableScrollConditions(0, false);
         mDraggingEnabled = true;
-
-        // Restore Z if we modified it during drag.
-        if (mTaskBeingDragged != null) {
-            mTaskBeingDragged.setTranslationZ(mTaskDragStartTranslationZ);
-            // Restore live tile if it was suppressed
-            if (mTaskBeingDragged.isRunningTask()
-                    && !mRecentsView.getEnableDrawingLiveTile()) {
-                mRecentsView.setEnableDrawingLiveTile(true);
-                mRecentsView.runActionOnRemoteHandles(remoteTargetHandle ->
-                        remoteTargetHandle.getTaskViewSimulator()
-                                .taskSecondaryTranslation.updateValue(0f));
-                mRecentsView.redrawLiveTile();
-            }
-        }
-        mTaskDragStartTranslationZ = 0f;
-
         mTaskBeingDragged = null;
         mCurrentAnimation = null;
         mIsDismissHapticRunning = false;

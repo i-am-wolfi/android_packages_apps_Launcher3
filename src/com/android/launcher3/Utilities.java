@@ -21,10 +21,8 @@ import static com.android.launcher3.Flags.injectableModelItems;
 import static com.android.launcher3.LauncherSettings.Favorites.CONTAINER_PRIVATESPACE;
 import static com.android.launcher3.folder.ClippedFolderIconLayoutRule.ICON_OVERLAP_FACTOR;
 import static com.android.launcher3.graphics.ShapeDelegate.DEFAULT_PATH_SIZE;
-import static com.android.launcher3.icons.BaseIconFactory.CONFIG_HINT_NO_WRAP;
 import static com.android.launcher3.icons.BitmapInfo.FLAG_THEMED;
 import static com.android.launcher3.icons.IconNormalizer.ICON_VISIBLE_AREA_FACTOR;
-import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
 import static com.android.launcher3.util.SplitConfigurationOptions.STAGE_POSITION_BOTTOM_OR_RIGHT;
 import static com.android.launcher3.util.SplitConfigurationOptions.STAGE_POSITION_TOP_OR_LEFT;
 import static com.android.launcher3.util.SplitConfigurationOptions.STAGE_TYPE_MAIN;
@@ -33,16 +31,11 @@ import static com.android.window.flags.Flags.enableNonDefaultDisplaySplit;
 import android.annotation.SuppressLint;
 import android.app.ActivityManager;
 import android.app.ActivityOptions;
-import android.app.KeyguardManager;
 import android.app.Person;
 import android.app.WallpaperManager;
-import android.content.ComponentName;
 import android.content.Context;
-import android.content.Intent;
-import android.content.pm.ActivityInfo;
 import android.content.pm.LauncherActivityInfo;
 import android.content.pm.LauncherApps;
-import android.content.pm.PackageManager;
 import android.content.pm.ShortcutInfo;
 import android.content.res.Configuration;
 import android.content.res.Resources;
@@ -59,17 +52,12 @@ import android.graphics.RectF;
 import android.graphics.drawable.AdaptiveIconDrawable;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
-import android.hardware.biometrics.BiometricManager.Authenticators;
-import android.hardware.biometrics.BiometricPrompt;
 import android.os.Build;
 import android.os.Build.VERSION_CODES;
-import android.os.CancellationSignal;
 import android.os.DeadObjectException;
 import android.os.Handler;
-import android.os.Looper;
 import android.os.Message;
 import android.os.TransactionTooLargeException;
-import android.os.UserHandle;
 import android.text.Spannable;
 import android.text.SpannableString;
 import android.text.TextUtils;
@@ -83,7 +71,6 @@ import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.view.animation.Interpolator;
-import android.widget.Toast;
 
 import androidx.annotation.ChecksSdkIntAtLeast;
 import androidx.annotation.IntDef;
@@ -92,7 +79,6 @@ import androidx.annotation.Nullable;
 import androidx.annotation.WorkerThread;
 import androidx.core.graphics.ColorUtils;
 
-import com.android.launcher3.R;
 import com.android.launcher3.deviceprofile.DeviceProperties;
 import com.android.launcher3.dragndrop.FolderAdaptiveIcon;
 import com.android.launcher3.graphics.ThemeManager;
@@ -125,8 +111,6 @@ import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
-
 /**
  * Various utilities shared amongst the Launcher's classes.
  */
@@ -152,10 +136,6 @@ public final class Utilities {
     public static final boolean ATLEAST_V = Build.VERSION.SDK_INT
             >= VERSION_CODES.VANILLA_ICE_CREAM;
 
-    private static final long WAIT_BEFORE_RESTART = 300; // ms
-    private static final Object sRestartLock = new Object();
-    private static boolean sRestartScheduled = false;
-
     /**
      * Set on a motion event dispatched from the nav bar. See {@link MotionEvent#setEdgeFlags(int)}.
      */
@@ -170,7 +150,7 @@ public final class Utilities {
     public static final boolean IS_DEBUG_DEVICE = BuildConfig.IS_DEBUG_DEVICE;
 
     public static boolean qsbOnFirstScreen() {
-        return BuildConfig.USE_QUICKSPACE_VIEW;
+        return !injectableModelItems() && BuildConfig.QSB_ON_FIRST_SCREEN;
     }
 
     public static final int TRANSLATE_UP = 0;
@@ -180,15 +160,6 @@ public final class Utilities {
 
     @IntDef({TRANSLATE_UP, TRANSLATE_DOWN, TRANSLATE_LEFT, TRANSLATE_RIGHT})
     public @interface AdjustmentDirection{}
-
-    public static final String GSA_PACKAGE = "com.google.android.googlequicksearchbox";
-    public static final String GEMINI_PACKAGE = "com.google.android.apps.bard";
-    public static final String LENS_ACTIVITY = "com.google.android.apps.search.lens.LensExportedActivity";
-    public static final String LENS_URI = "google://lens";
-    public static final String LENS_SHARE_ACTIVITY = "com.google.android.apps.search.lens.LensShareEntryPointActivity";
-
-    private static final String FREEFORM_PACKAGE = "com.libremobileos.freeform";
-    private static final String FREEFORM_INTENT = "com.libremobileos.freeform.START_FREEFORM";
 
     /**
      * Returns true if theme is dark.
@@ -314,9 +285,6 @@ public final class Utilities {
      * Inverse of {@link #getDescendantCoordRelativeToAncestor(View, View, float[], boolean)}.
      */
     public static void mapCoordInSelfToDescendant(View descendant, View root, float[] coord) {
-        if (descendant == null || root == null) {
-            return;
-        }
         sMatrix.reset();
         //TODO(b/307488755) when implemented this check should be removed
         if (!Objects.equals(descendant.getWindowId(), root.getWindowId())) {
@@ -716,12 +684,8 @@ public final class Utilities {
                     ((PendingAddShortcutInfo) info).getActivityInfo(context);
             mainIcon = activityInfo.getFullResIcon(appState.getIconCache());
         } else if (info.itemType == LauncherSettings.Favorites.ITEM_TYPE_APPLICATION) {
-            android.content.Intent intent = info.getIntent();
-            if (intent == null) {
-                return null;
-            }
             LauncherActivityInfo activityInfo = context.getSystemService(LauncherApps.class)
-                    .resolveActivity(intent, info.user);
+                    .resolveActivity(info.getIntent(), info.user);
             if (activityInfo == null) {
                 return null;
             }
@@ -764,11 +728,10 @@ public final class Utilities {
         if (mainIcon == null) {
             return null;
         }
-        AdaptiveIconDrawable result = null;
-        boolean noWrapHintSet = (mainIcon.getChangingConfigurations() & CONFIG_HINT_NO_WRAP) != 0;
+        AdaptiveIconDrawable result;
         if (mainIcon instanceof AdaptiveIconDrawable aid) {
             result = aid;
-        } else if (!noWrapHintSet) {
+        } else {
             // Wrap the main icon in AID
             try (LauncherIcons li = LauncherIcons.obtain(context)) {
                 result = li.wrapToAdaptiveIcon(mainIcon);
@@ -776,7 +739,7 @@ public final class Utilities {
         }
 
         // Inject theme icon drawable
-        if (ATLEAST_T && useTheme && !noWrapHintSet) {
+        if (ATLEAST_T && useTheme) {
             IconThemeController themeController =
                     ThemeManager.INSTANCE.get(context).getThemeController();
             if (themeController != null) {
@@ -1055,19 +1018,6 @@ public final class Utilities {
         }
     }
 
-    public static void restart() {
-        synchronized (sRestartLock) {
-            if (sRestartScheduled) {
-                return;
-            }
-            sRestartScheduled = true;
-        }
-
-        MAIN_EXECUTOR.getHandler().postDelayed(() -> {
-            System.exit(0);
-        }, WAIT_BEFORE_RESTART);
-    }
-
     /**
      * Returns whether mouse interaction changes intended for the desktop form factor should be
      * enabled.
@@ -1081,7 +1031,12 @@ public final class Utilities {
      * Returns a partial, loggable stack trace.
      */
     public static String getTrimmedStackTrace(String callingMethodName) {
-        return "";
+        String stackTrace = Log.getStackTraceString(new Exception());
+        return Arrays.stream(stackTrace.split("\\n"))
+                .skip(2) // Removes the line "java.lang.Exception" and "getTrimmedStackTrace".
+                .filter(traceLine -> !traceLine.contains(callingMethodName))
+                .limit(3)
+                .collect(Collectors.joining("\n"));
     }
 
     /**
@@ -1107,107 +1062,7 @@ public final class Utilities {
         }
     }
 
-    public static boolean isPackageInstalled(Context context, String pkg) {
-        try {
-            return context.getPackageManager().getApplicationInfo(pkg, 0).enabled;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    public static boolean isGSAEnabled(Context context) {
-        return isPackageInstalled(context, GSA_PACKAGE);
-    }
-
-    public static boolean showQSB(Context context) {
-        return isGSAEnabled(context) && isQSBEnabled(context);
-    }
-
-    private static boolean isQSBEnabled(Context context) {
-        return LauncherPrefs.DOCK_SEARCH.get(context);
-    }
-
-    public static boolean isMusicSearchEnabled(Context context) {
-        return isGSAEnabled(context) && LauncherPrefs.DOCK_MUSIC_SEARCH.get(context);
-    }
-
-    public static boolean isResizeableActivity(Context context, ComponentName activity) {
-        if (activity == null) return false;
-        final ActivityInfo info;
-        try {
-            info = context.getPackageManager().getActivityInfo(activity, /* flags */ 0);
-        } catch (Exception e) {
-            Log.e(TAG, "failed to check isResizeableActivity:", e);
-            return false;
-        }
-        return ActivityInfo.isResizeableMode(info.resizeMode);
-    }
-
-    public static void startLmoFreeform(Context context, ComponentName activity,
-            int userId, int taskId) {
-        final Intent intent = new Intent(FREEFORM_INTENT)
-                .setPackage(FREEFORM_PACKAGE)
-                .putExtra("packageName", activity.getPackageName())
-                .putExtra("activityName", activity.getClassName())
-                .putExtra("userId", userId)
-                .putExtra("taskId", taskId);
-        context.sendBroadcast(intent);
-    }
-
-    public static void startLmoFreeform(Context context, ComponentName activity, int userId) {
-        startLmoFreeform(context, activity, userId, -1);
-    }
-
-    public static void startLmoFreeform(Context context, ComponentName activity) {
-        startLmoFreeform(context, activity, UserHandle.myUserId());
-    }
-
-    /**
-     * Shows authentication screen to confirm credentials (pin, pattern or password) for the current
-     * user of the device.
-     *
-     * @param context The {@code Context} used to get {@code KeyguardManager} service
-     * @param title the {@code String} which will be shown as the pompt title
-     * @param successRunnable The {@code Runnable} which will be executed if the user does not setup
-     *                        device security or if lock screen is unlocked
-     */
-    public static void showLockScreen(Context context, String title, Runnable successRunnable) {
-        if (hasSecureKeyguard(context)) {
-            final BiometricPrompt.AuthenticationCallback authenticationCallback =
-                    new BiometricPrompt.AuthenticationCallback() {
-                        @Override
-                        public void onAuthenticationSucceeded(
-                                    BiometricPrompt.AuthenticationResult result) {
-                            successRunnable.run();
-                        }
-
-                        @Override
-                        public void onAuthenticationError(int errorCode, CharSequence errString) {
-                            //Do nothing
-                        }
-            };
-
-            final BiometricPrompt bp = new BiometricPrompt.Builder(context)
-                    .setTitle(title)
-                    .setAllowedAuthenticators(Authenticators.BIOMETRIC_STRONG |
-                                              Authenticators.DEVICE_CREDENTIAL)
-                    .build();
-
-            final Handler handler = MAIN_EXECUTOR.getHandler();
-            bp.authenticate(new CancellationSignal(),
-                    runnable -> handler.post(runnable),
-                    authenticationCallback);
-        } else {
-            // Notify the user a secure keyguard is required for protected apps,
-            // but allow to set hidden apps
-            Toast.makeText(context, R.string.trust_apps_no_lock_error, Toast.LENGTH_LONG)
-                .show();
-            successRunnable.run();
-        }
-    }
-
-    public static boolean hasSecureKeyguard(Context context) {
-        final KeyguardManager keyguardManager = context.getSystemService(KeyguardManager.class);
-        return keyguardManager != null && keyguardManager.isKeyguardSecure();
+    public static boolean isWorkspaceEditAllowed(Context context) {
+        return !LauncherPrefs.WORKSPACE_LOCK.get(context);
     }
 }

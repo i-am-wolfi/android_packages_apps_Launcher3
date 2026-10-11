@@ -18,6 +18,8 @@ package com.android.quickstep.util;
 import android.animation.ValueAnimator;
 import android.view.animation.Interpolator;
 
+import com.android.launcher3.Utilities;
+
 import java.util.ArrayList;
 
 /**
@@ -35,7 +37,7 @@ public abstract class MultiValueUpdateListener implements ValueAnimator.Animator
         for (int i = mAllProperties.size() - 1; i >= 0; i--) {
             FloatProp prop = mAllProperties.get(i);
             float interpolatedPercent = prop.mInterpolator.getInterpolation(percent);
-            prop.value = prop.mStart + interpolatedPercent * (prop.mEnd - prop.mStart);
+            prop.value = Utilities.mapRange(interpolatedPercent, prop.mStart, prop.mEnd);
         }
         onUpdate(percent, false /* initOnly */);
     }

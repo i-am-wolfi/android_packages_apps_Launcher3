@@ -20,7 +20,6 @@ import static com.android.launcher3.util.OverviewReleaseFlags.enableGridOnlyOver
 
 import android.app.ActivityManager;
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.graphics.Rect;
 import android.util.AttributeSet;
@@ -31,21 +30,17 @@ import android.view.View.OnClickListener;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
-import android.widget.TextView;
 
 import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
 
 import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.Insettable;
-import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.R;
-import com.android.launcher3.Utilities;
 import com.android.launcher3.anim.AnimatedFloat;
 import com.android.launcher3.util.DisplayController;
 import com.android.launcher3.util.MultiValueAlpha;
 import com.android.launcher3.util.NavigationMode;
-import com.android.launcher3.util.VibratorWrapper;
 import com.android.quickstep.TaskOverlayFactory.OverlayUICallbacks;
 import com.android.quickstep.util.LayoutUtils;
 import com.android.wm.shell.shared.TypefaceUtils;
@@ -59,10 +54,8 @@ import java.util.Arrays;
  * View for showing action buttons in Overview
  */
 public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayout
-        implements OnClickListener, Insettable, SharedPreferences.OnSharedPreferenceChangeListener {
-
+        implements OnClickListener, Insettable {
     public static final String TAG = "OverviewActionsView";
-    private static final boolean DEBUG = false;
     private final Rect mInsets = new Rect();
 
     /**
@@ -178,17 +171,6 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
     private boolean mIsGroupedTask = false;
     private boolean mCanSaveAppPair = false;
 
-    private boolean mScreenshot;
-    private boolean mClearAll;
-    private boolean mLens;
-
-    private SharedPreferences mPrefs;
-    private boolean mPrefsRegistered;
-
-    private View mLockPillContainer;
-    private TextView mLockPillText;
-    private boolean mLockPillShowing = false;
-
     public OverviewActionsView(Context context) {
         this(context, null);
     }
@@ -199,39 +181,6 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
 
     public OverviewActionsView(Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr, 0);
-        mPrefs = LauncherPrefs.getPrefs(context);
-        mScreenshot = LauncherPrefs.RECENTS_SCREENSHOT.get(context);
-        mClearAll = LauncherPrefs.RECENTS_CLEAR_ALL.get(context);
-        mLens = LauncherPrefs.RECENTS_LENS.get(context);
-    }
-
-    @Override
-    protected void onAttachedToWindow() {
-        super.onAttachedToWindow();
-        if (!mPrefsRegistered) {
-            mPrefs.registerOnSharedPreferenceChangeListener(this);
-            mPrefsRegistered = true;
-        }
-    }
-
-    @Override
-    protected void onDetachedFromWindow() {
-        setCallbacks(null);
-        clearChildClickListeners();
-        if (mPrefsRegistered) {
-            mPrefs.unregisterOnSharedPreferenceChangeListener(this);
-            mPrefsRegistered = false;
-        }
-        super.onDetachedFromWindow();
-    }
-
-    private void clearChildClickListeners() {
-        View v;
-        if ((v = findViewById(R.id.action_screenshot)) != null) v.setOnClickListener(null);
-        if ((v = findViewById(R.id.action_split)) != null) v.setOnClickListener(null);
-        if ((v = findViewById(R.id.action_save_app_pair)) != null) v.setOnClickListener(null);
-        if ((v = findViewById(R.id.action_clear_all)) != null) v.setOnClickListener(null);
-        if ((v = findViewById(R.id.action_lens)) != null) v.setOnClickListener(null);
     }
 
     @Override
@@ -258,48 +207,15 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
                 }
             }, 1f /* initialValue */);
         }
-        mLockPillContainer = findViewById(R.id.lock_pill_container);
-        mLockPillText = findViewById(R.id.lock_pill_text);
-        updateVisibilities();
-    }
 
-    public void showLockPill(boolean isCurrentlyLocked) {
-        if (mLockPillContainer == null || mLockPillShowing) return;
-        mLockPillShowing = true;
-        mLockPillText.setText(isCurrentlyLocked ? R.string.unlock_app : R.string.lock_app);
-        mLockPillContainer.setAlpha(0f);
-        mLockPillContainer.setVisibility(VISIBLE);
-        mLockPillContainer.animate().alpha(1f).setDuration(150).start();
-        mActionButtons.animate().alpha(0f).setDuration(150).start();
-    }
-
-    public void hideLockPill() {
-        if (mLockPillContainer == null || !mLockPillShowing) return;
-        mLockPillShowing = false;
-        mLockPillContainer.animate().alpha(0f).setDuration(150).withEndAction(() ->
-                mLockPillContainer.setVisibility(GONE)).start();
-        mActionButtons.animate().alpha(1f).setDuration(150).start();
-    }
-
-    private void updateVisibilities() {
         // The screenshot button is implemented as a Button in launcher3 and NexusLauncher, but is
         // an ImageButton in go launcher (does not share a common class with Button). Take care when
         // casting this.
         View screenshotButton = findViewById(R.id.action_screenshot);
         screenshotButton.setOnClickListener(this);
-        screenshotButton.setVisibility(mScreenshot ? VISIBLE : GONE);
-
         mSplitButton = findViewById(R.id.action_split);
         mSplitButton.setOnClickListener(this);
         mSaveAppPairButton.setOnClickListener(this);
-
-        View clearallButton = findViewById(R.id.action_clear_all);
-        clearallButton.setOnClickListener(this);
-        clearallButton.setVisibility(mClearAll ? VISIBLE : GONE);
-
-        View lensButton = findViewById(R.id.action_lens);
-        lensButton.setOnClickListener(this);
-        lensButton.setVisibility(mLens && Utilities.isGSAEnabled(getContext()) ? VISIBLE : GONE);
     }
 
     /**
@@ -307,7 +223,7 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
      *
      * @param callbacks for callbacks, or {@code null} to clear the listener.
      */
-    public void setCallbacks(@Nullable T callbacks) {
+    public void setCallbacks(T callbacks) {
         mCallbacks = callbacks;
     }
 
@@ -316,22 +232,13 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
         if (mCallbacks == null) {
             return;
         }
-        final int id = view.getId();
+        int id = view.getId();
         if (id == R.id.action_screenshot) {
-            VibratorWrapper.INSTANCE.get(getContext()).vibrate(VibratorWrapper.EFFECT_CLICK);
             mCallbacks.onScreenshot();
         } else if (id == R.id.action_split) {
-            VibratorWrapper.INSTANCE.get(getContext()).vibrate(VibratorWrapper.EFFECT_CLICK);
             mCallbacks.onSplit();
         } else if (id == R.id.action_save_app_pair) {
-            VibratorWrapper.INSTANCE.get(getContext()).vibrate(VibratorWrapper.EFFECT_CLICK);
             mCallbacks.onSaveAppPair();
-        } else if (id == R.id.action_clear_all) {
-            VibratorWrapper.INSTANCE.get(getContext()).vibrate(VibratorWrapper.EFFECT_CLICK);
-            mCallbacks.onClearAllTasksRequested();
-        } else if (id == R.id.action_lens) {
-            VibratorWrapper.INSTANCE.get(getContext()).vibrate(VibratorWrapper.EFFECT_CLICK);
-            mCallbacks.onLens();
         }
     }
 
@@ -346,18 +253,6 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
         mInsets.set(insets);
         updateVerticalMargin(DisplayController.getNavigationMode(getContext()));
         updatePadding();
-    }
-
-    @Override
-    public void onSharedPreferenceChanged(SharedPreferences prefs, String key) {
-        if (LauncherPrefs.RECENTS_SCREENSHOT.getSharedPrefKey().equals(key)) {
-            mScreenshot = prefs.getBoolean(key, true);
-        } else if (LauncherPrefs.RECENTS_CLEAR_ALL.getSharedPrefKey().equals(key)) {
-            mClearAll = prefs.getBoolean(key, true);
-        } else if (LauncherPrefs.RECENTS_LENS.getSharedPrefKey().equals(key)) {
-            mLens = prefs.getBoolean(key, false);
-        }
-        updateVisibilities();
     }
 
     public void updateHiddenFlags(@ActionsHiddenFlags int visibilityFlags, boolean enable) {
@@ -396,10 +291,8 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
      *                      pair.
      */
     public void updateForGroupedTask(boolean isGroupedTask, boolean canSaveAppPair) {
-        if (DEBUG) {
-            Log.d(TAG, "updateForGroupedTask() called with: isGroupedTask = [" + isGroupedTask
-                    + "], canSaveAppPair = [" + canSaveAppPair + "]");
-        }
+        Log.d(TAG, "updateForGroupedTask() called with: isGroupedTask = [" + isGroupedTask
+                + "], canSaveAppPair = [" + canSaveAppPair + "]");
         mIsGroupedTask = isGroupedTask;
         mCanSaveAppPair = canSaveAppPair;
         updateActionButtonsVisibility();
@@ -425,10 +318,8 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
         boolean showGroupActions = mIsGroupedTask && mDp.getDeviceProperties().isTablet() &&
                 mCanSaveAppPair &&
                 !getContext().getSystemService(ActivityManager.class).isLowRamDevice();
-        if (DEBUG) {
-            Log.d(TAG, "updateActionButtonsVisibility() called: showSingleTaskActions = ["
-                    + showSingleTaskActions + "], showGroupActions = [" + showGroupActions + "]");
-        }
+        Log.d(TAG, "updateActionButtonsVisibility() called: showSingleTaskActions = ["
+                + showSingleTaskActions + "], showGroupActions = [" + showGroupActions + "]");
         getActionsAlphas().get(INDEX_GROUPED_ALPHA).setValue(showSingleTaskActions ? 1 : 0);
         getGroupActionsAlphas().get(INDEX_GROUPED_ALPHA).setValue(showGroupActions ? 1 : 0);
     }
@@ -553,19 +444,15 @@ public class OverviewActionsView<T extends OverlayUICallbacks> extends FrameLayo
 
         requestLayout();
 
-        if (mSplitButton != null) {
-            mSplitButton.setCompoundDrawablesRelativeWithIntrinsicBounds(
-                dp.isLeftRightSplit ? R.drawable.ic_split_horizontal : R.drawable.ic_split_vertical,
-                0, 0, 0
-            );
-        }
+        int splitIconRes = dp.isLeftRightSplit
+                ? R.drawable.ic_split_horizontal
+                : R.drawable.ic_split_vertical;
+        mSplitButton.setCompoundDrawablesRelativeWithIntrinsicBounds(splitIconRes, 0, 0, 0);
 
-        if (mSaveAppPairButton != null) {
-            mSaveAppPairButton.setCompoundDrawablesRelativeWithIntrinsicBounds(
-                dp.isLeftRightSplit ? R.drawable.ic_save_app_pair_left_right
-                                    : R.drawable.ic_save_app_pair_up_down,
-                0, 0, 0
-            );
-        }
+        int appPairIconRes = dp.isLeftRightSplit
+                ? R.drawable.ic_save_app_pair_left_right
+                : R.drawable.ic_save_app_pair_up_down;
+        mSaveAppPairButton.setCompoundDrawablesRelativeWithIntrinsicBounds(
+                appPairIconRes, 0, 0, 0);
     }
 }

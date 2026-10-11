@@ -21,10 +21,6 @@ package com.android.launcher3.util;
  */
 public class StateManagerProtoLogProxy {
 
-    public static boolean isEnabled() {
-        return false;
-    }
-
     public static boolean isLoggingToLogcat() {
         return false;
     }

@@ -27,7 +27,6 @@ import android.graphics.Point;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
-import android.graphics.drawable.LayerDrawable;
 import android.graphics.drawable.RippleDrawable;
 import android.text.TextUtils;
 import android.util.AttributeSet;
@@ -105,27 +104,19 @@ public class DeepShortcutView extends FrameLayout implements BubbleTextHolder {
      * Updates the text background to match the shape of this background (when applicable).
      */
     private void tryUpdateTextBackground() {
-        if (mBubbleText == null) {
+        if (!(getBackground() instanceof GradientDrawable) || mBubbleText == null) {
             return;
         }
-        Drawable background = getBackground();
-        if (background instanceof LayerDrawable l && l.getNumberOfLayers() > 1) {
-            // When we use blur, we have a LayerDrawable of
-            // [BackgroundBlurDrawable, GradientDrawable] as the background.
-            background = l.getDrawable(1);
-        }
-        if (!(background instanceof GradientDrawable surfaceColor)) {
-            return;
-        }
+        GradientDrawable background = (GradientDrawable) getBackground();
 
         int color = Themes.getAttrColor(getContext(), android.R.attr.colorControlHighlight);
         GradientDrawable backgroundMask = new GradientDrawable();
         backgroundMask.setColor(color);
         backgroundMask.setShape(GradientDrawable.RECTANGLE);
-        if (surfaceColor.getCornerRadii() != null) {
-            backgroundMask.setCornerRadii(surfaceColor.getCornerRadii());
+        if (background.getCornerRadii() != null) {
+            backgroundMask.setCornerRadii(background.getCornerRadii());
         } else {
-            backgroundMask.setCornerRadius(surfaceColor.getCornerRadius());
+            backgroundMask.setCornerRadius(background.getCornerRadius());
         }
 
         RippleDrawable drawable = new RippleDrawable(ColorStateList.valueOf(color),

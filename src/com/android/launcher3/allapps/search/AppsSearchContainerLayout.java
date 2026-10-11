@@ -24,11 +24,7 @@ import static com.android.launcher3.icons.IconNormalizer.ICON_VISIBLE_AREA_FACTO
 
 import android.content.Context;
 import android.content.Intent;
-import android.content.res.ColorStateList;
-import android.content.res.Resources;
 import android.graphics.Rect;
-import android.graphics.drawable.Drawable;
-import android.graphics.drawable.PaintDrawable;
 import android.text.Selection;
 import android.text.SpannableStringBuilder;
 import android.text.method.TextKeyListener;
@@ -37,16 +33,11 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup.MarginLayoutParams;
 
-import androidx.core.graphics.ColorUtils;
-
 import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.ExtendedEditText;
 import com.android.launcher3.Insettable;
-import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.R;
-import com.android.launcher3.Utilities;
 import com.android.launcher3.allapps.ActivityAllAppsContainerView;
-import com.android.launcher3.allapps.AppDrawerStyle;
 import com.android.launcher3.allapps.AllAppsStore;
 import com.android.launcher3.allapps.BaseAllAppsAdapter.AdapterItem;
 import com.android.launcher3.allapps.PrivateProfileManager;
@@ -97,36 +88,22 @@ public class AppsSearchContainerLayout extends ExtendedEditText
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
-        if(mAppsView != null)
-            mAppsView.getAppsStore().addUpdateListener(this);
+        mAppsView.getAppsStore().addUpdateListener(this);
     }
 
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
-        if(mAppsView != null)
-            mAppsView.getAppsStore().removeUpdateListener(this);
+        mAppsView.getAppsStore().removeUpdateListener(this);
     }
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         // Update the width to match the grid padding
-        if (mAppsView == null) {
-            super.onMeasure(widthMeasureSpec, heightMeasureSpec);
-            return;
-        }
         DeviceProfile dp = mLauncher.getDeviceProfile();
         int myRequestedWidth = getSize(widthMeasureSpec);
-        View widthSource = mAppsView.getActiveRecyclerView();
-        if (widthSource == null) {
-            widthSource = mAppsView.getAppsRecyclerViewContainer();
-        }
-        if (widthSource == null) {
-            super.onMeasure(widthMeasureSpec, heightMeasureSpec);
-            return;
-        }
-        int rowWidth = myRequestedWidth - widthSource.getPaddingLeft()
-                - widthSource.getPaddingRight();
+        int rowWidth = myRequestedWidth - mAppsView.getActiveRecyclerView().getPaddingLeft()
+                - mAppsView.getActiveRecyclerView().getPaddingRight();
 
         int cellWidth = DeviceProfile.calculateCellWidth(rowWidth,
                 dp.getWorkspaceIconProfile().getCellLayoutBorderSpacePx().x, dp.numShownHotseatIcons);
@@ -142,10 +119,6 @@ public class AppsSearchContainerLayout extends ExtendedEditText
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
         super.onLayout(changed, left, top, right, bottom);
 
-        Drawable gIcon = getContext().getDrawable(R.drawable.ic_super_g_color);
-        Drawable gIconThemed = getContext().getDrawable(R.drawable.ic_super_g_themed);
-        Drawable sIcon = getContext().getDrawable(R.drawable.ic_allapps_search);
-
         // Shift the widget horizontally so that its centered in the parent (b/63428078)
         View parent = (View) getParent();
         int availableWidth = parent.getWidth() - parent.getPaddingLeft() - parent.getPaddingRight();
@@ -154,45 +127,7 @@ public class AppsSearchContainerLayout extends ExtendedEditText
         int shift = expectedLeft - left;
         setTranslationX(shift);
 
-        if (Utilities.showQSB(getContext()) && !LauncherPrefs.DOCK_THEME.get(getContext())) {
-            setCompoundDrawablesRelativeWithIntrinsicBounds(gIcon, null, null, null);
-        } else if (Utilities.showQSB(getContext()) && LauncherPrefs.DOCK_THEME.get(getContext())) {
-            setCompoundDrawablesRelativeWithIntrinsicBounds(gIconThemed, null, null, null);
-        } else {
-            setCompoundDrawablesRelativeWithIntrinsicBounds(sIcon, null, null, null);
-        }
-
         offsetTopAndBottom(mContentOverlap);
-
-        setUpBackground();
-    }
-
-    private void setUpBackground() {
-        Context context = getContext();
-        float cornerRadius = getCornerRadius(context);
-        int color = AppDrawerStyle.getSearchBackgroundColor(context);
-        int contentColor = AppDrawerStyle.getSearchContentColor(context);
-        PaintDrawable pd = new PaintDrawable(color);
-        pd.setCornerRadius(cornerRadius);
-        setClipToOutline(cornerRadius > 0);
-        setBackground(pd);
-        setTextColor(contentColor);
-        setHintTextColor(ColorUtils.setAlphaComponent(contentColor, 179));
-        if (!Utilities.showQSB(context) || LauncherPrefs.DOCK_THEME.get(context)) {
-            for (Drawable drawable : getCompoundDrawablesRelative()) {
-                if (drawable != null) {
-                    drawable.setTintList(ColorStateList.valueOf(contentColor));
-                }
-            }
-        }
-    }
-
-    private float getCornerRadius(Context context) {
-        Resources res = context.getResources();
-        float qsbWidgetHeight = res.getDimension(R.dimen.qsb_widget_height);
-        float qsbWidgetPadding = res.getDimension(R.dimen.qsb_widget_vertical_padding);
-        float innerHeight = qsbWidgetHeight - 2 * qsbWidgetPadding;
-        return (innerHeight / 2) * ((float)LauncherPrefs.SEARCH_RADIUS_SIZE.get(context) / 100f);
     }
 
     @Override

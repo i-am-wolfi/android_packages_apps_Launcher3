@@ -17,7 +17,7 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
-min_launcher3_sdk_version = "36"
+min_launcher3_sdk_version = "31"
 
 // Targets that don't inherit framework aconfig libs (i.e., those that don't set
 // `platform_apis: true`) must manually link them.
@@ -457,9 +457,7 @@ android_library {
         "launcher-executor-qualifiers",
         "launcher-executors-module",
         "libGoogleFeed",
-        "SettingsLib",
         "org.lineageos.platform",
-        "chaldea.seraphixgoogle",
     ],
     manifest: "AndroidManifest-common.xml",
     sdk_version: "current",
@@ -470,6 +468,15 @@ android_library {
     flags_packages: [
         "com_android_launcher3_flags",
     ],
+}
+
+// Extra privileged permission whitelist for Launcher3 app.
+prebuilt_etc {
+    name: "privapp_whitelist_com.android.launcher3-extra",
+    system_ext_specific: true,
+    sub_dir: "permissions",
+    src: "com.android.launcher3-extra.xml",
+    filename_from_src: true,
 }
 
 //
@@ -484,8 +491,6 @@ android_app {
 
     static_libs: [
         "Launcher3ResLib",
-        "androidx.room_room-runtime",
-        "androidx.room_room-ktx",
     ],
     srcs: [
         ":launcher-src",
@@ -502,11 +507,7 @@ android_app {
     sdk_version: "current",
     min_sdk_version: min_launcher3_sdk_version,
     target_sdk_version: "current",
-    plugins: [
-        "androidx.room_room-compiler-plugin",
-        "dagger2-compiler",
-    ],
-    certificate: "platform",
+    plugins: ["dagger2-compiler"],
     privileged: true,
     system_ext_specific: true,
 
@@ -517,7 +518,7 @@ android_app {
     ],
     required: [
         "privapp_whitelist_com.android.launcher3",
-        "privapp_whitelist_com.android.launcher3-ext",
+        "privapp_whitelist_com.android.launcher3-extra",
     ],
 
     jacoco: {
@@ -589,7 +590,6 @@ android_library {
     static_libs: [
         "QuickstepResLib",
         "androidx.room_room-runtime",
-        "androidx.room_room-ktx",
     ],
     plugins: [
         "androidx.room_room-compiler-plugin",
@@ -632,15 +632,10 @@ android_library {
     static_libs: [
         "SystemUI-statsd",
         "QuickstepResLib",
-        "androidx.room_room-runtime",
-        "androidx.room_room-ktx",
     ],
     manifest: "quickstep/AndroidManifest.xml",
     platform_apis: true,
-    plugins: [
-        "androidx.room_room-compiler-plugin",
-        "dagger2-compiler",
-    ],
+    plugins: ["dagger2-compiler"],
     min_sdk_version: "current",
     // TODO(b/319712088): re-enable use_resource_processor
     use_resource_processor: false,
@@ -663,7 +658,6 @@ android_app {
     min_sdk_version: "current",
     target_sdk_version: "current",
 
-    certificate: "platform",
     privileged: true,
     system_ext_specific: true,
     overrides: [
@@ -674,7 +668,7 @@ android_app {
     ],
     required: [
         "privapp_whitelist_com.android.launcher3",
-        "privapp_whitelist_com.android.launcher3-ext",
+        "privapp_whitelist_com.android.launcher3-extra",
         "launcher.quickstep.protolog.pb",
     ],
 
@@ -710,7 +704,6 @@ android_app {
         shrink_resources: true,
     },
 
-    certificate: "platform",
     privileged: true,
     system_ext_specific: true,
     overrides: [
@@ -722,7 +715,7 @@ android_app {
     ],
     required: [
         "privapp_whitelist_com.android.launcher3",
-        "privapp_whitelist_com.android.launcher3-ext",
+        "privapp_whitelist_com.android.launcher3-extra",
     ],
 
     additional_manifests: [
@@ -752,7 +745,6 @@ android_app {
         shrink_resources: true,
     },
 
-    certificate: "platform",
     privileged: true,
     system_ext_specific: true,
     overrides: [
@@ -764,7 +756,7 @@ android_app {
     ],
     required: [
         "privapp_whitelist_com.android.launcher3",
-        "privapp_whitelist_com.android.launcher3-ext",
+        "privapp_whitelist_com.android.launcher3-extra",
     ],
 
     additional_manifests: [
@@ -777,12 +769,4 @@ android_app {
     jacoco: {
         include_filter: ["com.android.launcher3.*"],
     },
-}
-
-prebuilt_etc {
-    name: "privapp_whitelist_com.android.launcher3-ext",
-    system_ext_specific: true,
-    sub_dir: "permissions",
-    src: "privapp_whitelist_com.android.launcher3-ext.xml",
-    filename_from_src: true,
 }

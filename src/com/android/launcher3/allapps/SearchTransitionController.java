@@ -16,7 +16,6 @@
 
 package com.android.launcher3.allapps;
 
-import static android.view.View.GONE;
 import static android.view.View.VISIBLE;
 
 import static com.android.app.animation.Interpolators.DECELERATE_1_7;
@@ -68,9 +67,9 @@ public class SearchTransitionController extends RecyclerViewAnimationController 
             }));
         }
         mAllAppsContainerView.getFloatingHeaderView().setFloatingRowsCollapsed(true);
-        mAllAppsContainerView.getFloatingHeaderView().setVisibility(GONE);
-        mAllAppsContainerView.getFloatingHeaderView().maybeSetTabVisibility(GONE);
-        mAllAppsContainerView.getAppsRecyclerViewContainer().setVisibility(GONE);
+        mAllAppsContainerView.getFloatingHeaderView().setVisibility(VISIBLE);
+        mAllAppsContainerView.getFloatingHeaderView().maybeSetTabVisibility(VISIBLE);
+        mAllAppsContainerView.getAppsRecyclerViewContainer().setVisibility(VISIBLE);
         getRecyclerView().setVisibility(VISIBLE);
     }
 
@@ -115,7 +114,7 @@ public class SearchTransitionController extends RecyclerViewAnimationController 
      */
     @Override
     protected boolean shouldAnimate(View view, boolean hasDecorationInfo, boolean appRowComplete) {
-        return appRowComplete;
+        return !isAppIcon(view) || appRowComplete;
     }
 
     @Override

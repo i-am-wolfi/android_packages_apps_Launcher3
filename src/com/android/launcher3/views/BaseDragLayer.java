@@ -461,10 +461,8 @@ public abstract class BaseDragLayer<T extends Context & ActivityContext>
     public void mapCoordInSelfToDescendant(View descendant, int[] coord) {
         mTmpXY[0] = coord[0];
         mTmpXY[1] = coord[1];
-        if (descendant != null) {
-            Utilities.mapCoordInSelfToDescendant(descendant, this, mTmpXY);
-            Utilities.roundArray(mTmpXY, coord);
-        }
+        Utilities.mapCoordInSelfToDescendant(descendant, this, mTmpXY);
+        Utilities.roundArray(mTmpXY, coord);
     }
 
     public void getViewRectRelativeToSelf(View v, Rect r) {
@@ -564,7 +562,6 @@ public abstract class BaseDragLayer<T extends Context & ActivityContext>
         }
     }
 
-    @Override
     protected void onLayout(boolean changed, int l, int t, int r, int b) {
         super.onLayout(changed, l, t, r, b);
         int count = getChildCount();

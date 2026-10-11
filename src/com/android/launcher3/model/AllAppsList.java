@@ -33,10 +33,8 @@ import androidx.annotation.NonNull;
 import com.android.launcher3.AppFilter;
 import com.android.launcher3.Flags;
 import com.android.launcher3.compat.AlphabeticIndexCompat;
-import com.android.launcher3.dagger.ApplicationContext;
 import com.android.launcher3.dagger.LauncherAppSingleton;
 import com.android.launcher3.icons.IconCache;
-import com.android.launcher3.lineage.trust.db.TrustDatabaseHelper;
 import com.android.launcher3.lineage.trust.HiddenAppsFilter;
 import com.android.launcher3.model.data.AppInfo;
 import com.android.launcher3.model.data.AppsListData;
@@ -45,7 +43,6 @@ import com.android.launcher3.model.repository.AppsListRepository;
 import com.android.launcher3.pm.PackageInstallInfo;
 import com.android.launcher3.pm.UserCache;
 import com.android.launcher3.util.ApiWrapper;
-import com.android.launcher3.util.CustomAppNameStore;
 import com.android.launcher3.util.FlagOp;
 import com.android.launcher3.util.PackageManagerHelper;
 
@@ -87,8 +84,6 @@ public class AllAppsList {
 
     private boolean mDataChanged = false;
 
-    private TrustDatabaseHelper mTrustData;
-
     private AlphabeticIndexCompat mIndex;
 
     /**
@@ -106,12 +101,10 @@ public class AllAppsList {
     @Inject
     public AllAppsList(@NonNull IconCache iconCache,
             @NonNull HiddenAppsFilter appFilter,
-            @NonNull Provider<AppsListRepository> repositoryProvider,
-            @ApplicationContext Context context) {
+            @NonNull Provider<AppsListRepository> repositoryProvider) {
         mIconCache = iconCache;
         mAppFilter = appFilter;
         mRepo = repositoryProvider;
-        mTrustData = TrustDatabaseHelper.getInstance(context);
         mIndex = new AlphabeticIndexCompat(LocaleList.getDefault());
     }
 
@@ -163,9 +156,6 @@ public class AllAppsList {
     }
 
     public void add(AppInfo info, LauncherActivityInfo activityInfo, boolean loadIcon) {
-        if (mTrustData.isPackageHidden(info.getTargetPackage())) {
-            return;
-        }
         if (!mAppFilter.shouldShowApp(info.componentName)) {
             return;
         }
@@ -260,24 +250,6 @@ public class AllAppsList {
                 info.sectionName = mIndex.computeSectionName(info.title);
                 mDataChanged = true;
             }
-        }
-    }
-
-    /** Updates the display title for a single app after a custom rename. */
-    public void updateCustomAppTitle(Context context, IconCache iconCache,
-            ComponentName component, UserHandle user) {
-        for (AppInfo info : data) {
-            if (!info.user.equals(user) || !component.equals(info.componentName)) {
-                continue;
-            }
-            String customTitle = CustomAppNameStore.getCustomName(context, info);
-            if (customTitle != null) {
-                info.title = customTitle;
-            } else {
-                iconCache.updateTitleAndIcon(info);
-            }
-            info.sectionName = mIndex.computeSectionName(info.title);
-            mDataChanged = true;
         }
     }
 

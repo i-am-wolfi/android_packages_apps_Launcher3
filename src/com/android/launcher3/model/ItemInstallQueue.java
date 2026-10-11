@@ -54,7 +54,6 @@ import com.android.launcher3.dagger.LauncherAppSingleton;
 import com.android.launcher3.dagger.LauncherBaseAppComponent;
 import com.android.launcher3.logging.FileLog;
 import com.android.launcher3.model.data.ItemInfo;
-import com.android.launcher3.model.data.AppInfo;
 import com.android.launcher3.model.data.LauncherAppWidgetInfo;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.model.tasks.AddWorkspaceItemsTask;
@@ -207,13 +206,6 @@ public class ItemInstallQueue {
     }
 
     /**
-     * Adds an app activity item to the install queue.
-     */
-    public void queueItem(AppInfo appInfo) {
-        queuePendingShortcutInfo(new PendingInstallShortcutInfo(appInfo.getIntent(), appInfo.user));
-    }
-
-    /**
      * Returns a stream of all pending shortcuts in the queue
      */
     @WorkerThread
@@ -282,15 +274,6 @@ public class ItemInstallQueue {
         }
 
         /**
-         * Initializes a PendingInstallShortcutInfo to represent a specific launcher
-         * activity intent.
-         */
-        public PendingInstallShortcutInfo(Intent launchIntent, UserHandle userHandle) {
-            itemType = Favorites.ITEM_TYPE_APPLICATION;
-            intent = new Intent(launchIntent);
-            user = userHandle;
-        }
-        /**
          * Initializes a PendingInstallShortcutInfo to represent a deep shortcut.
          */
         public PendingInstallShortcutInfo(ShortcutInfo info) {
@@ -325,48 +308,30 @@ public class ItemInstallQueue {
             switch (itemType) {
                 case ITEM_TYPE_APPLICATION: {
                     String packageName = intent.getPackage();
-                    ComponentName requestedComponent = intent.getComponent();
-                    if (packageName == null && requestedComponent != null) {
-                        packageName = requestedComponent.getPackageName();
-                    }
-                    if (packageName == null) {
-                        return null;
-                    }
-                    LauncherApps launcherApps = context.getSystemService(LauncherApps.class);
-                    List<LauncherActivityInfo> laiList = launcherApps.getActivityList(packageName, user);
+                    List<LauncherActivityInfo> laiList =
+                            context.getSystemService(LauncherApps.class)
+                                    .getActivityList(packageName, user);
 
                     final WorkspaceItemInfo si = new WorkspaceItemInfo();
                     si.user = user;
 
-                    LauncherActivityInfo lai = null;
-                    if (requestedComponent != null) {
-                        for (LauncherActivityInfo info : laiList) {
-                            if (requestedComponent.equals(info.getComponentName())) {
-                                lai = info;
-                                break;
-                            }
-                        }
-                    }
-                    if (lai == null && !laiList.isEmpty()) {
-                        lai = laiList.get(0);
-                    }
-
-                    boolean usePackageIcon = lai == null;
+                    LauncherActivityInfo lai;
+                    boolean usePackageIcon = laiList.isEmpty();
                     if (usePackageIcon) {
-                        ComponentName fallbackComponent = requestedComponent != null
-                                ? requestedComponent : new ComponentName(packageName, "");
-                        si.intent = makeLaunchIntent(fallbackComponent).setPackage(packageName);
+                        lai = null;
+                        si.intent = makeLaunchIntent(new ComponentName(packageName, ""))
+                                .setPackage(packageName);
                         si.status |= WorkspaceItemInfo.FLAG_AUTOINSTALL_ICON;
                     } else {
+                        lai = laiList.get(0);
                         si.intent = makeLaunchIntent(lai);
                         if (Flags.enableSupportForArchiving()
                                 && lai.getActivityInfo().isArchived) {
                             si.runtimeStatusFlags |= FLAG_ARCHIVED;
                         }
                     }
-                    final LauncherActivityInfo activityInfoForIcon = lai;
                     LauncherAppState.getInstance(context).getIconCache()
-                            .getTitleAndIcon(si, () -> activityInfoForIcon,
+                            .getTitleAndIcon(si, () -> lai,
                                     DESKTOP_ICON_FLAG.withUsePackageIcon(usePackageIcon));
                     return Pair.create(si, null);
                 }
@@ -430,7 +395,7 @@ public class ItemInstallQueue {
     private PendingInstallShortcutInfo decode(int itemType, UserHandle user, Intent intent) {
         switch (itemType) {
             case Favorites.ITEM_TYPE_APPLICATION:
-                return new PendingInstallShortcutInfo(intent, user);
+                return new PendingInstallShortcutInfo(intent.getPackage(), user);
             case Favorites.ITEM_TYPE_DEEP_SHORTCUT: {
                 List<ShortcutInfo> si = ShortcutKey.fromIntent(intent, user)
                         .buildRequest(mContext)

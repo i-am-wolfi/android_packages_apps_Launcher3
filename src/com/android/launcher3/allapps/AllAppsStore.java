@@ -161,7 +161,7 @@ public class AllAppsStore {
         return mDeferUpdatesFlags;
     }
 
-    public void notifyUpdate() {
+    private void notifyUpdate() {
         if (mDeferUpdatesFlags != 0) {
             Log.d(TAG, "notifyUpdate: deferring update");
             mUpdatePending = true;

@@ -29,7 +29,6 @@ import android.content.pm.LauncherActivityInfo;
 import android.content.pm.LauncherApps;
 import android.content.pm.ShortcutInfo;
 import android.os.UserHandle;
-import android.widget.Toast;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -37,8 +36,6 @@ import androidx.annotation.NonNull;
 import com.android.launcher3.Flags;
 import com.android.launcher3.LauncherModel.ModelUpdateTask;
 import com.android.launcher3.LauncherSettings.Favorites;
-import com.android.launcher3.R;
-import com.android.launcher3.Utilities;
 import com.android.launcher3.icons.IconCache;
 import com.android.launcher3.logging.FileLog;
 import com.android.launcher3.model.AllAppsList;
@@ -100,15 +97,11 @@ public class PackageUpdatedTask implements ModelUpdateTask {
         final FlagOp flagOp = FlagOp.NO_OP.removeFlag(FLAG_DISABLED_NOT_AVAILABLE);
         final HashSet<ComponentName> removedComponents = new HashSet<>();
         final HashMap<String, List<LauncherActivityInfo>> activitiesLists = new HashMap<>();
-        boolean needsRestart = false;
         for (String packageName : mPackages) {
             iconCache.updateIconsForPkg(packageName, mUser);
             activitiesLists.put(
                     packageName,
                     appsList.updatePackage(context, packageName, mUser, removedComponents));
-            if (isTargetPackage(packageName)) {
-                needsRestart = true;
-            }
         }
 
         taskController.bindApplicationsIfNeeded();
@@ -313,11 +306,6 @@ public class PackageUpdatedTask implements ModelUpdateTask {
             }
             taskController.bindUpdatedWidgets(dataModel);
         }
-
-        if (needsRestart) {
-            Toast.makeText(context, R.string.updating_launcher_components, Toast.LENGTH_SHORT).show();
-            Utilities.restart();
-        }
     }
 
     /**
@@ -349,10 +337,5 @@ public class PackageUpdatedTask implements ModelUpdateTask {
         return Flags.restoreArchivedShortcuts()
                 && !itemInfo.isArchived()
                 && itemInfo.itemType == ITEM_TYPE_DEEP_SHORTCUT;
-    }
-
-    private boolean isTargetPackage(String packageName) {
-        return packageName.equals(Utilities.GSA_PACKAGE) ||
-            packageName.equals(Utilities.GEMINI_PACKAGE);
     }
 }

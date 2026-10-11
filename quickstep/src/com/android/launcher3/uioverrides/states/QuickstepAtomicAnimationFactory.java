@@ -61,21 +61,20 @@ public class QuickstepAtomicAnimationFactory extends
                 isThreeButton);
         Workspace<?> workspace = getContainer().getWorkspace();
         // Start from a higher workspace scale, but only if we're invisible so we don't jump.
-        boolean isWorkspaceVisible = workspace != null && workspace.getVisibility() == VISIBLE;
-        if (isWorkspaceVisible && workspace != null) {
+        boolean isWorkspaceVisible = workspace.getVisibility() == VISIBLE;
+        if (isWorkspaceVisible) {
             CellLayout currentChild = (CellLayout) workspace.getChildAt(
                     workspace.getCurrentPage());
-            isWorkspaceVisible = currentChild != null && currentChild.getVisibility() == VISIBLE
+            isWorkspaceVisible = currentChild.getVisibility() == VISIBLE
                     && currentChild.getShortcutsAndWidgets().getAlpha() > 0;
         }
-        if (!isWorkspaceVisible && workspace != null) {
+        if (!isWorkspaceVisible) {
             workspace.setScaleX(WORKSPACE_PREPARE_SCALE);
             workspace.setScaleY(WORKSPACE_PREPARE_SCALE);
         }
         Hotseat hotseat = getContainer().getHotseat();
-        boolean isHotseatVisible = hotseat != null && hotseat.getVisibility() == VISIBLE
-                && hotseat.getAlpha() > 0;
-        if (!isHotseatVisible && hotseat != null) {
+        boolean isHotseatVisible = hotseat.getVisibility() == VISIBLE && hotseat.getAlpha() > 0;
+        if (!isHotseatVisible) {
             hotseat.setScaleX(WORKSPACE_PREPARE_SCALE);
             hotseat.setScaleY(WORKSPACE_PREPARE_SCALE);
         }

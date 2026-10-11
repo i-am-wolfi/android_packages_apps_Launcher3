@@ -105,13 +105,11 @@ public class Hotseat extends CellLayout implements Insettable {
 
     public Hotseat(Context context, AttributeSet attrs, int defStyle) {
         super(context, attrs, defStyle);
-        if (Utilities.showQSB(context)) {
-            int layoutRes = LauncherPrefs.DOCK_SEARCH_PIXEL_STYLE.get(context)
-                    ? R.layout.search_container_hotseat_pixel
-                    : R.layout.search_container_hotseat;
-            mQsb = LayoutInflater.from(context).inflate(layoutRes, this, false);
+        if (Flags.enableQsbOnHotseat()) {
+            mQsb = LayoutInflater.from(context).inflate(R.layout.qsb_container_hotseat, this,
+                    false);
         } else {
-            mQsb = LayoutInflater.from(context).inflate(R.layout.empty_view, this,
+            mQsb = LayoutInflater.from(context).inflate(R.layout.search_container_hotseat, this,
                     false);
         }
 

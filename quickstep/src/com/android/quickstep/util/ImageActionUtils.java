@@ -51,7 +51,6 @@ import androidx.core.content.FileProvider;
 import com.android.internal.app.ChooserActivity;
 import com.android.internal.util.ScreenshotRequest;
 import com.android.launcher3.BuildConfig;
-import com.android.launcher3.Utilities;
 import com.android.quickstep.SystemUiProxy;
 import com.android.systemui.shared.recents.model.Task;
 
@@ -158,33 +157,6 @@ public class ImageActionUtils {
             }
             persistBitmapAndStartActivity(context, bitmap,
                     crop, intent, ImageActionUtils::getShareIntentForImageUri, tag, sharedElement);
-        });
-    }
-
-    @WorkerThread
-    public static void startLensActivity(Context context, Supplier<Bitmap> bitmapSupplier,
-            Rect crop, String tag) {
-        UI_HELPER_EXECUTOR.execute(() -> {
-            Bitmap bitmap = bitmapSupplier.get();
-            if (bitmap == null) {
-                Log.e(tag, "No snapshot available, not starting lens.");
-                return;
-            }
-            Intent intent = new Intent();
-            Uri uri = getImageUri(bitmap, crop, context, tag);
-            ClipData clipdata = new ClipData(new ClipDescription("content",
-                    new String[]{"image/png"}),
-                    new ClipData.Item(uri));
-            intent.setAction(Intent.ACTION_SEND)
-                    .setComponent(
-                            new ComponentName(Utilities.GSA_PACKAGE, Utilities.LENS_SHARE_ACTIVITY))
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                    .addFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
-                    .addFlags(FLAG_GRANT_READ_URI_PERMISSION)
-                    .setType("image/png")
-                    .putExtra(Intent.EXTRA_STREAM, uri)
-                    .setClipData(clipdata);
-            context.startActivity(intent);
         });
     }
 

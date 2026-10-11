@@ -35,6 +35,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.recyclerview.widget.DefaultItemAnimator;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -44,15 +45,13 @@ import com.android.launcher3.AppFilter;
 import com.android.launcher3.LauncherAppState;
 import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.R;
-import com.android.launcher3.Utilities;
+import com.android.launcher3.lineage.LineageUtils;
 import com.android.launcher3.lineage.trust.db.TrustComponent;
 import com.android.launcher3.lineage.trust.db.TrustDatabaseHelper;
 
-import com.android.settingslib.collapsingtoolbar.CollapsingToolbarBaseActivity;
-
 import java.util.List;
 
-public class TrustAppsActivity extends CollapsingToolbarBaseActivity implements
+public class TrustAppsActivity extends Activity implements
         TrustAppsAdapter.Listener,
         LoadTrustComponentsTask.Callback,
         UpdateItemTask.UpdateCallback {
@@ -70,25 +69,19 @@ public class TrustAppsActivity extends CollapsingToolbarBaseActivity implements
     protected void onCreate(@Nullable Bundle savedInstance) {
         super.onCreate(savedInstance);
 
-        setContentView(R.layout.activity_hidden_apps);
+        ActionBar actionBar = getActionBar();
+        if (actionBar != null) {
+            actionBar.setDisplayHomeAsUpEnabled(true);
+        }
 
+        setupEdgeToEdge();
+        setContentView(R.layout.activity_hidden_apps);
         mRecyclerView = findViewById(R.id.hidden_apps_list);
         mLoadingView = findViewById(R.id.hidden_apps_loading);
         mLoadingView.setVisibility(View.VISIBLE);
         mProgressBar = findViewById(R.id.hidden_apps_progress_bar);
 
-        ViewCompat.setOnApplyWindowInsetsListener(mRecyclerView, (view, insets) -> {
-            Insets systemInsets = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            view.setPadding(
-                view.getPaddingLeft(),
-                systemInsets.top,
-                view.getPaddingRight(),
-                systemInsets.bottom
-            );
-            return WindowInsetsCompat.CONSUMED;
-        });
-
-        final boolean hasSecureKeyguard = Utilities.hasSecureKeyguard(this);
+        final boolean hasSecureKeyguard = LineageUtils.hasSecureKeyguard(this);
         mAdapter = new TrustAppsAdapter(this, hasSecureKeyguard);
         mDbHelper = TrustDatabaseHelper.getInstance(this);
 
@@ -148,6 +141,20 @@ public class TrustAppsActivity extends CollapsingToolbarBaseActivity implements
         mLoadingView.setVisibility(View.GONE);
         mRecyclerView.setVisibility(View.VISIBLE);
         mAdapter.update(result);
+    }
+
+    private void setupEdgeToEdge() {
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(android.R.id.content),
+                (v, windowInsets) -> {
+                    Insets insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars());
+                    // Apply the insets paddings to the view.
+                    v.setPadding(insets.left, insets.top, insets.right, insets.bottom);
+
+                    // Return CONSUMED if you don't want the window insets to keep being
+                    // passed down to descendant views.
+                    return WindowInsetsCompat.CONSUMED;
+                });
     }
 
     private void showOnBoarding(boolean forceShow) {

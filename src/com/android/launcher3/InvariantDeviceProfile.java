@@ -20,16 +20,13 @@ import static com.android.launcher3.Flags.enableScalabilityForDesktopExperience;
 import static com.android.launcher3.GridType.GRID_TYPE_ANY;
 import static com.android.launcher3.GridType.GRID_TYPE_NON_ONE_GRID;
 import static com.android.launcher3.GridType.GRID_TYPE_ONE_GRID;
-import static com.android.launcher3.LauncherPrefs.ALLAPPS_ICON_CUSTOMIZATION;
+import static com.android.launcher3.LauncherPrefs.ALLAPPS_THEMED_ICONS;
 import static com.android.launcher3.LauncherPrefs.DB_FILE;
 import static com.android.launcher3.LauncherPrefs.DRAWER_OPEN_KEYBOARD;
 import static com.android.launcher3.LauncherPrefs.ENABLE_TWOLINE_ALLAPPS_TOGGLE;
 import static com.android.launcher3.LauncherPrefs.FIXED_LANDSCAPE_MODE;
-import static com.android.launcher3.LauncherPrefs.FONT_SIZE;
 import static com.android.launcher3.LauncherPrefs.GRID_NAME;
-import static com.android.launcher3.LauncherPrefs.ICON_SIZE;
 import static com.android.launcher3.LauncherPrefs.NON_FIXED_LANDSCAPE_GRID_NAME;
-import static com.android.launcher3.LauncherPrefs.ROW_HEIGHT;
 import static com.android.launcher3.LauncherPrefs.SHOW_DESKTOP_LABELS;
 import static com.android.launcher3.LauncherPrefs.SHOW_DRAWER_LABELS;
 import static com.android.launcher3.Utilities.dpiFromPx;
@@ -67,7 +64,6 @@ import androidx.annotation.VisibleForTesting;
 import androidx.annotation.XmlRes;
 
 import com.android.launcher3.config.FeatureFlags;
-import com.android.launcher3.customization.IconDatabase;
 import com.android.launcher3.dagger.ApplicationContext;
 import com.android.launcher3.dagger.LauncherAppComponent;
 import com.android.launcher3.dagger.LauncherAppSingleton;
@@ -171,7 +167,6 @@ public class InvariantDeviceProfile {
     public int[] numFolderColumns;
     public float[] iconSize;
     public float[] iconTextSize;
-    public String iconPack;
     public int iconBitmapSize;
     public int fillResIconDpi;
     public @DeviceType int deviceType;
@@ -254,6 +249,7 @@ public class InvariantDeviceProfile {
     public int allAppsCellSpecsTwoPanelId = INVALID_RESOURCE_HANDLE;
 
     private String mLocale = "";
+    public boolean enableTwoLinesInAllApps = false;
 
     // If non-negative, the workspace row with which top of the all apps container is to be aligned
     // with.
@@ -324,15 +320,13 @@ public class InvariantDeviceProfile {
                     onConfigChanged();
                 }
                 Trace.endSection();
-            } else if (ALLAPPS_ICON_CUSTOMIZATION.getSharedPrefKey().equals(key) ||
+            } else if (ENABLE_TWOLINE_ALLAPPS_TOGGLE.getSharedPrefKey().equals(key)
+                    && enableTwoLinesInAllApps != prefs.get(ENABLE_TWOLINE_ALLAPPS_TOGGLE)) {
+                onConfigChanged();
+            } else if (ALLAPPS_THEMED_ICONS.getSharedPrefKey().equals(key) ||
                     DRAWER_OPEN_KEYBOARD.getSharedPrefKey().equals(key) ||
                     SHOW_DESKTOP_LABELS.getSharedPrefKey().equals(key) ||
-                    SHOW_DRAWER_LABELS.getSharedPrefKey().equals(key) ||
-                    ICON_SIZE.getSharedPrefKey().equals(key) ||
-                    FONT_SIZE.getSharedPrefKey().equals(key) ||
-                    ENABLE_TWOLINE_ALLAPPS_TOGGLE.getSharedPrefKey().equals(key) ||
-                    ROW_HEIGHT.getSharedPrefKey().equals(key) ||
-                    IconDatabase.KEY_ICON_PACK.equals(key)) {
+                    SHOW_DRAWER_LABELS.getSharedPrefKey().equals(key)) {
                 onConfigChanged();
             }
         };
@@ -396,6 +390,9 @@ public class InvariantDeviceProfile {
 
     private void initGridForDisplayOption(Info displayInfo, DisplayOption displayOption) {
         Context context = displayInfo.context;
+        enableTwoLinesInAllApps = Flags.enableTwolineToggle()
+                && Utilities.isEnglishLanguage(context)
+                && mPrefs.get(ENABLE_TWOLINE_ALLAPPS_TOGGLE);
         mLocale = context.getResources().getConfiguration().locale.toString();
 
         DisplayMetrics metrics = context.getResources().getDisplayMetrics();
@@ -441,8 +438,6 @@ public class InvariantDeviceProfile {
         for (int i = 1; i < iconSize.length; i++) {
             maxIconSize = Math.max(maxIconSize, iconSize[i]);
         }
-        iconPack = IconDatabase.getGlobal(context);
-
         iconBitmapSize = ResourceUtils.pxFromDp(maxIconSize, metrics);
 
         fillResIconDpi = getLauncherIconDensity(iconBitmapSize);
@@ -558,8 +553,7 @@ public class InvariantDeviceProfile {
     private Object[] toModelState() {
         return new Object[]{
                 numColumns, numRows, numSearchContainerColumns, numDatabaseHotseatIcons,
-                iconPack, iconBitmapSize, fillResIconDpi, numDatabaseAllAppsColumns,
-                dbFile, mLocale};
+                iconBitmapSize, fillResIconDpi, numDatabaseAllAppsColumns, dbFile, mLocale};
     }
 
     /** Updates IDP using the provided context. Notifies listeners of change. */
@@ -1480,11 +1474,6 @@ public class InvariantDeviceProfile {
 
             TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.ProfileDisplayOption);
 
-            float iconSizeModifier =
-                    (float) LauncherPrefs.ICON_SIZE.get(context) / 100F;
-            float fontSizeModifier =
-                    (float) LauncherPrefs.FONT_SIZE.get(context) / 100F;
-
             minWidthDps = a.getFloat(R.styleable.ProfileDisplayOption_minWidthDps, 0);
             minHeightDps = a.getFloat(R.styleable.ProfileDisplayOption_minHeightDps, 0);
 
@@ -1613,23 +1602,20 @@ public class InvariantDeviceProfile {
                     allAppsBorderSpaceTwoPanelLandscape);
             allAppsBorderSpaces[INDEX_TWO_PANEL_LANDSCAPE] = new PointF(x, y);
 
-            float baseIconSize = a.getFloat(R.styleable.ProfileDisplayOption_iconImageSize, 0);
+            iconSizes[INDEX_DEFAULT] =
+                    a.getFloat(R.styleable.ProfileDisplayOption_iconImageSize, 0);
+            iconSizes[INDEX_LANDSCAPE] =
+                    a.getFloat(R.styleable.ProfileDisplayOption_iconSizeLandscape,
+                            iconSizes[INDEX_DEFAULT]);
+            iconSizes[INDEX_TWO_PANEL_PORTRAIT] =
+                    a.getFloat(R.styleable.ProfileDisplayOption_iconSizeTwoPanelPortrait,
+                            iconSizes[INDEX_DEFAULT]);
+            iconSizes[INDEX_TWO_PANEL_LANDSCAPE] =
+                    a.getFloat(R.styleable.ProfileDisplayOption_iconSizeTwoPanelLandscape,
+                            iconSizes[INDEX_DEFAULT]);
 
-            iconSizes[INDEX_DEFAULT] = baseIconSize * iconSizeModifier;
-            iconSizes[INDEX_LANDSCAPE] = a.getFloat(
-                    R.styleable.ProfileDisplayOption_iconSizeLandscape,
-                    iconSizes[INDEX_DEFAULT]);
-            iconSizes[INDEX_TWO_PANEL_PORTRAIT] = a.getFloat(
-                    R.styleable.ProfileDisplayOption_iconSizeTwoPanelPortrait,
-                    iconSizes[INDEX_DEFAULT]);
-            iconSizes[INDEX_TWO_PANEL_LANDSCAPE] = a.getFloat(
-                    R.styleable.ProfileDisplayOption_iconSizeTwoPanelLandscape,
-                    iconSizes[INDEX_DEFAULT]);
-
-            float baseAllAppsIconSize = a.getFloat(R.styleable.ProfileDisplayOption_allAppsIconSize, 0);
-
-            allAppsIconSizes[INDEX_DEFAULT] = baseAllAppsIconSize == 0 ? 
-                iconSizes[INDEX_DEFAULT] : baseAllAppsIconSize * iconSizeModifier;
+            allAppsIconSizes[INDEX_DEFAULT] = a.getFloat(
+                    R.styleable.ProfileDisplayOption_allAppsIconSize, iconSizes[INDEX_DEFAULT]);
             allAppsIconSizes[INDEX_LANDSCAPE] = a.getFloat(
                     R.styleable.ProfileDisplayOption_allAppsIconSizeLandscape,
                     allAppsIconSizes[INDEX_DEFAULT]);
@@ -1641,7 +1627,7 @@ public class InvariantDeviceProfile {
                     allAppsIconSizes[INDEX_DEFAULT]);
 
             textSizes[INDEX_DEFAULT] =
-                    a.getFloat(R.styleable.ProfileDisplayOption_iconTextSize, 0) * fontSizeModifier;
+                    a.getFloat(R.styleable.ProfileDisplayOption_iconTextSize, 0);
             textSizes[INDEX_LANDSCAPE] =
                     a.getFloat(R.styleable.ProfileDisplayOption_iconTextSizeLandscape,
                             textSizes[INDEX_DEFAULT]);
@@ -1687,16 +1673,16 @@ public class InvariantDeviceProfile {
                     R.styleable.ProfileDisplayOption_hotseatBarBottomSpaceTwoPanelPortrait,
                     hotseatBarBottomSpace[INDEX_DEFAULT]);
 
-            hotseatQsbSpace[INDEX_DEFAULT] = !Utilities.showQSB(context) ? 0f : a.getFloat(
+            hotseatQsbSpace[INDEX_DEFAULT] = a.getFloat(
                     R.styleable.ProfileDisplayOption_hotseatQsbSpace,
                     res.getFloat(R.dimen.hotseat_qsb_space_default));
-            hotseatQsbSpace[INDEX_LANDSCAPE] = !Utilities.showQSB(context) ? 0f : a.getFloat(
+            hotseatQsbSpace[INDEX_LANDSCAPE] = a.getFloat(
                     R.styleable.ProfileDisplayOption_hotseatQsbSpaceLandscape,
                     hotseatQsbSpace[INDEX_DEFAULT]);
-            hotseatQsbSpace[INDEX_TWO_PANEL_LANDSCAPE] = !Utilities.showQSB(context) ? 0f : a.getFloat(
+            hotseatQsbSpace[INDEX_TWO_PANEL_LANDSCAPE] = a.getFloat(
                     R.styleable.ProfileDisplayOption_hotseatQsbSpaceTwoPanelLandscape,
                     hotseatQsbSpace[INDEX_DEFAULT]);
-            hotseatQsbSpace[INDEX_TWO_PANEL_PORTRAIT] = !Utilities.showQSB(context) ? 0f : a.getFloat(
+            hotseatQsbSpace[INDEX_TWO_PANEL_PORTRAIT] = a.getFloat(
                     R.styleable.ProfileDisplayOption_hotseatQsbSpaceTwoPanelPortrait,
                     hotseatQsbSpace[INDEX_DEFAULT]);
 

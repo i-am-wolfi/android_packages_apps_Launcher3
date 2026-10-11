@@ -124,11 +124,8 @@ public class TaskOverlayFactory {
     private static final TaskShortcutFactory[] PER_TASK_MENU_OPTIONS = new TaskShortcutFactory[]{
             TaskShortcutFactory.APP_INFO,
             TaskShortcutFactory.SPLIT_SELECT,
-            TaskShortcutFactory.UNINSTALL,
-            TaskShortcutFactory.LOCK_APP,
             TaskShortcutFactory.PIN,
             TaskShortcutFactory.INSTALL,
-            TaskShortcutFactory.FLOATING,
             TaskShortcutFactory.FREE_FORM,
             DesktopSystemShortcut.Companion.createFactory(),
             ExternalDisplaySystemShortcut.Companion.createFactory(),
@@ -271,20 +268,6 @@ public class TaskOverlayFactory {
             GroupedTaskView taskView = (GroupedTaskView) mTaskContainer.getTaskView();
             taskView.getRecentsView().getSplitSelectController().getAppPairsController()
                     .saveAppPair(taskView);
-        }
-
-        private void clearAllTasks() {
-            final RecentsView recentsView = mTaskContainer.getTaskView().getRecentsView();
-            recentsView.dismissAllTasks();
-        }
-
-        private void launchLens() {
-            final RecentsView recentsView =
-                    mTaskContainer.getTaskView().getRecentsView();
-            if (recentsView != null) {
-                recentsView.startHome();
-                mImageApi.startLensActivity();
-            }
         }
 
         /**
@@ -441,33 +424,16 @@ public class TaskOverlayFactory {
             }
 
             @SuppressLint("NewApi")
-            @Override
             public void onScreenshot() {
                 endLiveTileMode(() -> saveScreenshot(mTask));
             }
 
-            @Override
             public void onSplit() {
                 endLiveTileMode(TaskOverlay.this::enterSplitSelect);
             }
 
-            @Override
             public void onSaveAppPair() {
                 endLiveTileMode(TaskOverlay.this::saveAppPair);
-            }
-
-            @Override
-            public void onClearAllTasksRequested() {
-                endLiveTileMode(TaskOverlay.this::clearAllTasks);
-            }
-
-            @Override
-            public void onLens() {
-                if (mIsAllowedByPolicy) {
-                    endLiveTileMode(TaskOverlay.this::launchLens);
-                } else {
-                    showBlockedByPolicyMessage();
-                }
             }
         }
     }
@@ -485,9 +451,5 @@ public class TaskOverlayFactory {
 
         /** User wants to save an app pair with current group of apps. */
         void onSaveAppPair();
-
-        void onClearAllTasksRequested();
-
-        void onLens();
     }
 }

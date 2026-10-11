@@ -157,7 +157,7 @@ public class NavBarToHomeTouchController implements TouchController,
             AbstractFloatingView.closeOpenContainer(mLauncher, AbstractFloatingView.TYPE_TASK_MENU);
         } else if (mStartState == ALL_APPS) {
             AllAppsTransitionController allAppsController = mLauncher.getAllAppsController();
-            if (mLauncher.getDeviceProfile().shouldShowAllAppsOnSheet(mLauncher)) {
+            if (mLauncher.getDeviceProfile().shouldShowAllAppsOnSheet()) {
                 allAppsController.setShouldScaleHeader(true);
                 builder.addAnimatedFloat(allAppsController.getAllAppScale(), 1f,
                         PREDICTIVE_BACK_MIN_SCALE, PULLBACK_INTERPOLATOR);

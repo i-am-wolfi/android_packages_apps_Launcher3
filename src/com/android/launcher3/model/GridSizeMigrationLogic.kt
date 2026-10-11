@@ -26,6 +26,7 @@ import com.android.launcher3.LauncherSettings
 import com.android.launcher3.LauncherSettings.Favorites
 import com.android.launcher3.LauncherSettings.Favorites.TABLE_NAME
 import com.android.launcher3.LauncherSettings.Favorites.TMP_TABLE
+import com.android.launcher3.Utilities.qsbOnFirstScreen
 import com.android.launcher3.dagger.ApplicationContext
 import com.android.launcher3.logging.FileLog
 import com.android.launcher3.logging.StatsLogManager
@@ -508,7 +509,7 @@ constructor(
         val occupied = GridOccupancy(trgX, trgY)
         val trg = Point(trgX, trgY)
         val next: Point =
-            if (screenId == 0 && LauncherPrefs.SHOW_QUICKSPACE.get(context)) {
+            if (screenId == 0 && qsbOnFirstScreen()) {
                 Point(0, 1 /* smartspace */)
             } else {
                 Point(0, 0)

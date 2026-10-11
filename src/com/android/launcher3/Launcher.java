@@ -99,8 +99,6 @@ import static com.android.launcher3.popup.SystemShortcut.ADD_TO_HOME_SCREEN;
 import static com.android.launcher3.popup.SystemShortcut.APP_INFO;
 import static com.android.launcher3.popup.SystemShortcut.INSTALL;
 import static com.android.launcher3.popup.SystemShortcut.REMOVE;
-import static com.android.launcher3.popup.SystemShortcut.RENAME_APP;
-import static com.android.launcher3.popup.SystemShortcut.UNINSTALL;
 import static com.android.launcher3.popup.SystemShortcut.WIDGETS;
 import static com.android.launcher3.states.RotationHelper.REQUEST_LOCK;
 import static com.android.launcher3.states.RotationHelper.REQUEST_NONE;
@@ -126,7 +124,6 @@ import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Rect;
 import android.graphics.RectF;
-import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Parcelable;
@@ -189,6 +186,7 @@ import com.android.launcher3.dragndrop.SystemDragController;
 import com.android.launcher3.folder.Folder;
 import com.android.launcher3.folder.FolderIcon;
 import com.android.launcher3.keyboard.ViewGroupFocusHelper;
+import com.android.launcher3.lineage.LineageUtils;
 import com.android.launcher3.logger.LauncherAtom;
 import com.android.launcher3.logger.LauncherAtom.ContainerInfo;
 import com.android.launcher3.logger.LauncherAtom.WorkspaceContainer;
@@ -215,7 +213,6 @@ import com.android.launcher3.pm.PinRequestHelper;
 import com.android.launcher3.popup.ArrowPopup;
 import com.android.launcher3.popup.PopupController;
 import com.android.launcher3.popup.SystemShortcut;
-import com.android.launcher3.quickspace.QuickSpaceView;
 import com.android.launcher3.statemanager.StateManager;
 import com.android.launcher3.statemanager.StateManager.StateHandler;
 import com.android.launcher3.statemanager.StatefulActivity;
@@ -432,9 +429,6 @@ public class Launcher extends StatefulActivity<LauncherState>
 
     private boolean mIsTopResumedActivity;
 
-    // QuickSpace
-    private QuickSpaceView mQuickSpace;
-
     public static Launcher getLauncher(Context context) {
         return fromContext(context);
     }
@@ -536,8 +530,7 @@ public class Launcher extends StatefulActivity<LauncherState>
         // Listen for screen turning off
         ScreenOnTracker.INSTANCE.get(this).addListener(mScreenOnListener);
         getSystemUiController().updateUiState(SystemUiController.UI_STATE_BASE_WINDOW,
-                Themes.getAttrBoolean(this, R.attr.isWorkspaceDarkText)
-                || LauncherPrefs.DARK_STATUS_BAR.get(this));
+                Themes.getAttrBoolean(this, R.attr.isWorkspaceDarkText));
 
         mOverlayManager = getDefaultOverlay();
         PluginManagerWrapper.INSTANCE.get(this)
@@ -709,7 +702,14 @@ public class Launcher extends StatefulActivity<LauncherState>
         if (!com.android.launcher3.Flags.oneGridSpecs()) {
             return;
         }
-        if (getDeviceProfile().getDeviceProperties().isTablet()) {
+        // When the flag oneGridSpecs is on we want to disable ALLOW_ROTATION which is replaced
+        // by FIXED_LANDSCAPE_MODE, ALLOW_ROTATION will only be used on Tablets and foldables
+        // afterwards.
+        if (getDeviceProfile().getDeviceProperties().isRotationAllowed()) {
+            LauncherPrefs.get(this).put(FIXED_LANDSCAPE_MODE, false);
+        } else if (getDeviceProfile().getDeviceProperties().isPhone()) {
+            LauncherPrefs.get(this).put(LauncherPrefs.ALLOW_ROTATION, false);
+        } else if (getDeviceProfile().getDeviceProperties().isTablet()) {
             // Tablet do not use fixed landscape mode, make sure it can't be activated by mistake
             LauncherPrefs.get(this).put(FIXED_LANDSCAPE_MODE, false);
         }
@@ -1132,7 +1132,7 @@ public class Launcher extends StatefulActivity<LauncherState>
             mWorkspace.setClipChildren(false);
         }
         // When multiple pages are visible or desktop devices, show persistent page indicator
-        mWorkspace.getPageIndicator().setShouldAutoHide(LauncherPrefs.AUTO_HIDE_DOTS.get(this)
+        mWorkspace.getPageIndicator().setShouldAutoHide(!state.hasFlag(FLAG_MULTI_PAGE)
                 && !shouldEnableMouseInteractionChanges(mWorkspace.getContext()));
 
         mPrevLauncherState = mStateManager.getCurrentStableState();
@@ -1210,10 +1210,6 @@ public class Launcher extends StatefulActivity<LauncherState>
         TraceHelper.INSTANCE.beginSection(ON_RESUME_EVT);
         super.onResume();
 
-        if (mQuickSpace != null) {
-            mQuickSpace.onResume();
-        }
-
         if (mDeferOverlayCallbacks) {
             scheduleDeferredCheck();
         } else {
@@ -1236,9 +1232,6 @@ public class Launcher extends StatefulActivity<LauncherState>
 
         if (!mDeferOverlayCallbacks) {
             mOverlayManager.onActivityPaused();
-        }
-        if (mQuickSpace != null) {
-            mQuickSpace.onPause();
         }
         mAppWidgetHolder.setActivityResumed(false);
     }
@@ -1309,20 +1302,6 @@ public class Launcher extends StatefulActivity<LauncherState>
         mLeftArrow.setOnClickListener(v -> mWorkspace.snapToPage(
                 mWorkspace.getCurrentPage() - 1));
 
-        if (LauncherPrefs.SHOW_HOTSEAT_BG.get(this)) {
-            GradientDrawable hotseatBackground =
-                    (GradientDrawable) getDrawable(R.drawable.bkg_appseat).mutate();
-            int hotseatColor = Themes.getAttrBoolean(this, R.attr.isWorkspaceDarkText)
-                    ? R.color.appseat_color_light_wallpaper
-                    : R.color.appseat_color_dark_wallpaper;
-            hotseatBackground.setColor(getColor(hotseatColor));
-            int hotseatOpacity = Utilities.isDarkTheme(this)
-                    ? LauncherPrefs.HOTSEAT_OPACITY.get(this)
-                    : LauncherPrefs.HOTSEAT_OPACITY_LIGHT.get(this);
-            hotseatBackground.setAlpha(hotseatOpacity * 255 / 100);
-            mHotseat.setBackground(hotseatBackground);
-        }
-
         // Setup the drag layer
         mDragLayer.setup(mDragController, mWorkspace);
 
@@ -1343,17 +1322,11 @@ public class Launcher extends StatefulActivity<LauncherState>
         // Setup Scrim
         mScrimView = findViewById(R.id.scrim_view);
 
-        // QuickSpace
-        mQuickSpace = findViewById(R.id.reserved_container_workspace);
-        if (!LauncherPrefs.SHOW_QUICKSPACE.get(this) && mQuickSpace != null) {
-            mQuickSpace.setVisibility(View.GONE);
-        }
-
         // Setup the drag controller (drop targets have to be added in reverse order in priority)
         mDropTargetBar.setup(mDragController);
         mAllAppsController.setupViews(mScrimView, mAppsView);
 
-        mWorkspace.getPageIndicator().setShouldAutoHide(LauncherPrefs.AUTO_HIDE_DOTS.get(this) &&
+        mWorkspace.getPageIndicator().setShouldAutoHide(
                 !shouldEnableMouseInteractionChanges(mWorkspace.getContext()));
         mWorkspace.getPageIndicator().setPaintColor(Themes.getAttrBoolean(
                 this, R.attr.isWorkspaceDarkText) ? Color.BLACK : Color.WHITE);
@@ -1771,10 +1744,6 @@ public class Launcher extends StatefulActivity<LauncherState>
         getRootView().getViewTreeObserver().removeOnPreDrawListener(mOnInitialBindListener);
         mOverlayManager.onActivityDestroyed();
         PillColorProvider.getInstance(mWorkspace.getContext()).unregisterObserver();
-
-        if (mQuickSpace != null) {
-            mQuickSpace.onDestroy();
-        }
     }
 
     /**
@@ -2184,7 +2153,7 @@ public class Launcher extends StatefulActivity<LauncherState>
     }
 
     public void startActivitySafelyAuth(View v, Intent intent, ItemInfo item) {
-        Utilities.showLockScreen(this, getString(R.string.trust_apps_manager_name), () -> {
+        LineageUtils.showLockScreen(this, getString(R.string.trust_apps_manager_name), () -> {
             startActivitySafely(v, intent, item);
         });
     }
@@ -2996,19 +2965,18 @@ public class Launcher extends StatefulActivity<LauncherState>
     public Stream<SystemShortcut.Factory> getSupportedShortcuts(ItemInfo itemInfo) {
         int container = itemInfo.container;
         if (container == CONTAINER_DESKTOP || container == CONTAINER_HOTSEAT) {
-            return Stream.of(APP_INFO, RENAME_APP, WIDGETS, INSTALL, REMOVE, UNINSTALL);
+            return Stream.of(APP_INFO, WIDGETS, INSTALL, REMOVE);
         } else if (container == CONTAINER_ALL_APPS || container == CONTAINER_ALL_APPS_PREDICTION) {
             // TODO(b/444744861): Update private space apps to have its own container.
             boolean isPinnable = itemInfo instanceof ItemInfoWithIcon info
                     && (info.runtimeStatusFlags & FLAG_NOT_PINNABLE) == 0;
             if (isPinnable) {
-                return Stream.of(APP_INFO, RENAME_APP, WIDGETS, INSTALL,
-                        ADD_TO_HOME_SCREEN, UNINSTALL);
+                return Stream.of(APP_INFO, WIDGETS, INSTALL, ADD_TO_HOME_SCREEN);
             } else {
-                return Stream.of(APP_INFO, RENAME_APP, WIDGETS, INSTALL, UNINSTALL);
+                return Stream.of(APP_INFO, WIDGETS, INSTALL);
             }
         }
-        return Stream.of(APP_INFO, RENAME_APP, WIDGETS, INSTALL, UNINSTALL);
+        return Stream.of(APP_INFO, WIDGETS, INSTALL);
     }
 
     /**

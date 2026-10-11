@@ -91,20 +91,6 @@ public class RectFSpringAnim extends ReleaseCheck {
                 }
             };
 
-    // Cached spring constants to avoid per-start resource lookups
-    private static volatile boolean sConstantsLoaded;
-    private static long sCachedMinVelocityXPxPerS;
-    private static long sCachedMaxVelocityXPxPerS;
-    private static long sCachedMinVelocityYPxPerS;
-    private static long sCachedMaxVelocityYPxPerS;
-    private static float sCachedFallOffFactor;
-    private static float sCachedStiffnessX;
-    private static float sCachedDampingX;
-    private static float sCachedStiffnessY;
-    private static float sCachedDampingY;
-    private static float sCachedStiffnessZ;
-    private static float sCachedDampingZ;
-
     private final RectF mStartRect;
     private final RectF mTargetRect;
     private final RectF mCurrentRect = new RectF();
@@ -211,31 +197,12 @@ public class RectFSpringAnim extends ReleaseCheck {
         mAnimatorListeners.add(animatorListener);
     }
 
-    private static synchronized void ensureConstantsLoaded(Context context) {
-        if (sConstantsLoaded) return;
-        ResourceProvider rp = DynamicResource.provider(context);
-        sCachedMinVelocityXPxPerS = rp.getInt(R.dimen.swipe_up_min_velocity_x_px_per_s);
-        sCachedMaxVelocityXPxPerS = rp.getInt(R.dimen.swipe_up_max_velocity_x_px_per_s);
-        sCachedMinVelocityYPxPerS = rp.getInt(R.dimen.swipe_up_min_velocity_y_px_per_s);
-        sCachedMaxVelocityYPxPerS = rp.getInt(R.dimen.swipe_up_max_velocity_y_px_per_s);
-        sCachedFallOffFactor = rp.getFloat(R.dimen.swipe_up_max_velocity_fall_off_factor);
-        sCachedStiffnessX = rp.getFloat(R.dimen.swipe_up_rect_x_stiffness);
-        sCachedDampingX = rp.getFloat(R.dimen.swipe_up_rect_x_damping_ratio);
-        sCachedStiffnessY = rp.getFloat(R.dimen.swipe_up_rect_y_stiffness);
-        sCachedDampingY = rp.getFloat(R.dimen.swipe_up_rect_y_damping_ratio);
-        sCachedStiffnessZ = rp.getFloat(R.dimen.swipe_up_rect_scale_stiffness_v2);
-        sCachedDampingZ = rp.getFloat(R.dimen.swipe_up_rect_scale_damping_ratio_v2);
-        sConstantsLoaded = true;
-    }
-
     /**
      * Starts the fling/spring animation.
      * @param context The activity context.
      * @param velocityPxPerMs Velocity of swipe in px/ms.
      */
     public void start(Context context, @Nullable DeviceProfile profile, PointF velocityPxPerMs) {
-        ensureConstantsLoaded(context);
-
         // Only tell caller that we ended if both x and y animations have ended.
         OnAnimationEndListener onXEndListener = ((animation, canceled, centerX, velocityX) -> {
             mRectXAnimEnded = true;
@@ -254,43 +221,54 @@ public class RectFSpringAnim extends ReleaseCheck {
         float endY = getTrackedYFromRect(mTargetRect);
         float minVisibleChange = Math.abs(1f / mStartRect.height());
 
+        ResourceProvider rp = DynamicResource.provider(context);
+        long minVelocityXPxPerS = rp.getInt(R.dimen.swipe_up_min_velocity_x_px_per_s);
+        long maxVelocityXPxPerS = rp.getInt(R.dimen.swipe_up_max_velocity_x_px_per_s);
+        long minVelocityYPxPerS = rp.getInt(R.dimen.swipe_up_min_velocity_y_px_per_s);
+        long maxVelocityYPxPerS = rp.getInt(R.dimen.swipe_up_max_velocity_y_px_per_s);
+        float fallOffFactor = rp.getFloat(R.dimen.swipe_up_max_velocity_fall_off_factor);
+
         // We want the actual initial velocity to never dip below the minimum, and to taper off
         // once it's above the soft cap so that we can prevent the window from flying off
         // screen, while maintaining a natural feel.
         xVelocityPxPerS = adjustVelocity(
-                xVelocityPxPerS, sCachedMinVelocityXPxPerS, sCachedMaxVelocityXPxPerS,
-                sCachedFallOffFactor);
+                xVelocityPxPerS, minVelocityXPxPerS, maxVelocityXPxPerS, fallOffFactor);
         yVelocityPxPerS = adjustVelocity(
-                yVelocityPxPerS, sCachedMinVelocityYPxPerS, sCachedMaxVelocityYPxPerS,
-                sCachedFallOffFactor);
+                yVelocityPxPerS, minVelocityYPxPerS, maxVelocityYPxPerS, fallOffFactor);
 
+        float stiffnessX = rp.getFloat(R.dimen.swipe_up_rect_x_stiffness);
+        float dampingX = rp.getFloat(R.dimen.swipe_up_rect_x_damping_ratio);
         mRectXSpring =
                 new SpringAnimation(this, RECT_CENTER_X)
                         .setSpring(
                                 new SpringForce(endX)
-                                        .setStiffness(sCachedStiffnessX)
-                                        .setDampingRatio(sCachedDampingX)
+                                        .setStiffness(stiffnessX)
+                                        .setDampingRatio(dampingX)
                         ).setStartValue(startX)
                         .setStartVelocity(xVelocityPxPerS)
                         .addEndListener(onXEndListener);
 
+        float stiffnessY = rp.getFloat(R.dimen.swipe_up_rect_y_stiffness);
+        float dampingY = rp.getFloat(R.dimen.swipe_up_rect_y_damping_ratio);
         mRectYSpring =
                 new SpringAnimation(this, RECT_Y)
                         .setSpring(
                                 new SpringForce(endY)
-                                        .setStiffness(sCachedStiffnessY)
-                                        .setDampingRatio(sCachedDampingY)
+                                        .setStiffness(stiffnessY)
+                                        .setDampingRatio(dampingY)
                         )
                         .setStartValue(startY)
                         .setStartVelocity(yVelocityPxPerS)
                         .addEndListener(onYEndListener);
 
+        float stiffnessZ = rp.getFloat(R.dimen.swipe_up_rect_scale_stiffness_v2);
+        float dampingZ = rp.getFloat(R.dimen.swipe_up_rect_scale_damping_ratio_v2);
         mRectScaleAnim =
                 new SpringAnimation(this, RECT_SCALE_PROGRESS)
                         .setSpring(
                                 new SpringForce(1f)
-                                        .setStiffness(sCachedStiffnessZ)
-                                        .setDampingRatio(sCachedDampingZ))
+                                        .setStiffness(stiffnessZ)
+                                        .setDampingRatio(dampingZ))
                         .setStartVelocity(velocityPxPerMs.y * minVisibleChange)
                         .setMaxValue(1f)
                         .setMinimumVisibleChange(minVisibleChange)
@@ -349,28 +327,27 @@ public class RectFSpringAnim extends ReleaseCheck {
         }
 
         if (!mOnUpdateListeners.isEmpty()) {
-            float startWidth = mStartRect.width();
-            float startHeight = mStartRect.height();
-            float currentWidth = startWidth + mCurrentScaleProgress * (mTargetRect.width() - startWidth);
-            float currentHeight = startHeight + mCurrentScaleProgress * (mTargetRect.height() - startHeight);
-            float halfWidth = currentWidth / 2;
+            float currentWidth = Utilities.mapRange(mCurrentScaleProgress, mStartRect.width(),
+                    mTargetRect.width());
+            float currentHeight = Utilities.mapRange(mCurrentScaleProgress, mStartRect.height(),
+                    mTargetRect.height());
             switch (mTracking) {
                 case TRACKING_TOP:
-                    mCurrentRect.set(mCurrentCenterX - halfWidth,
+                    mCurrentRect.set(mCurrentCenterX - currentWidth / 2,
                             mCurrentY,
-                            mCurrentCenterX + halfWidth,
+                            mCurrentCenterX + currentWidth / 2,
                             mCurrentY + currentHeight);
                     break;
                 case TRACKING_BOTTOM:
-                    mCurrentRect.set(mCurrentCenterX - halfWidth,
+                    mCurrentRect.set(mCurrentCenterX - currentWidth / 2,
                             mCurrentY - currentHeight,
-                            mCurrentCenterX + halfWidth,
+                            mCurrentCenterX + currentWidth / 2,
                             mCurrentY);
                     break;
                 case TRACKING_CENTER:
-                    mCurrentRect.set(mCurrentCenterX - halfWidth,
+                    mCurrentRect.set(mCurrentCenterX - currentWidth / 2,
                             mCurrentY - currentHeight / 2,
-                            mCurrentCenterX + halfWidth,
+                            mCurrentCenterX + currentWidth / 2,
                             mCurrentY + currentHeight / 2);
                     break;
             }

@@ -27,8 +27,6 @@ import static com.android.launcher3.LauncherSettings.Favorites.DESKTOP_ICON_FLAG
 import static com.android.launcher3.icons.cache.CacheLookupFlag.DEFAULT_LOOKUP_FLAG;
 import static com.android.launcher3.model.PredictionHelper.getBundleForHotseatPredictions;
 import static com.android.launcher3.model.PredictionHelper.getBundleForWidgetPredictions;
-import static com.android.launcher3.util.DisplayController.CHANGE_OVERLAYS;
-import static com.android.launcher3.util.DisplayController.CHANGE_UI_MODE;
 import static com.android.launcher3.util.Executors.MODEL_EXECUTOR;
 
 import android.app.StatsManager;
@@ -49,7 +47,6 @@ import com.android.launcher3.Flags;
 import com.android.launcher3.InvariantDeviceProfile;
 import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.dagger.ApplicationContext;
-import com.android.launcher3.lineage.trust.db.TrustDatabaseHelper;
 import com.android.launcher3.logger.LauncherAtom;
 import com.android.launcher3.logging.InstanceId;
 import com.android.launcher3.logging.InstanceIdSequence;
@@ -57,12 +54,8 @@ import com.android.launcher3.model.data.CollectionInfo;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.PredictedContainerInfo;
 import com.android.launcher3.model.data.WorkspaceData;
-import com.android.launcher3.LauncherAppState;
 import com.android.launcher3.pm.UserCache;
 import com.android.launcher3.util.IntSparseArrayMap;
-import com.android.launcher3.util.DisplayController;
-import com.android.launcher3.util.DisplayController.DisplayInfoChangeListener;
-import com.android.launcher3.util.DisplayController.Info;
 import com.android.quickstep.logging.SettingsChangeLogger;
 import com.android.quickstep.logging.StatsLogCompatManager;
 import com.android.quickstep.util.ContextualSearchStateManager;
@@ -105,7 +98,6 @@ public class QuickstepModelDelegate extends ModelDelegate {
     private final StatsManager mStatsManager;
 
     protected boolean mActive = false;
-    private DisplayInfoChangeListener mDisplayInfoChangeListener;
 
     @Inject
     public QuickstepModelDelegate(@ApplicationContext Context context,
@@ -196,19 +188,6 @@ public class QuickstepModelDelegate extends ModelDelegate {
             prefs.put(LAST_SNAPSHOT_TIME_MILLIS, now);
         }
 
-        mDisplayInfoChangeListener = new DisplayInfoChangeListener() {
-            @Override
-            public void onDisplayInfoChanged(Context context, Info info, int flags) {
-                if ((flags & CHANGE_UI_MODE) != 0 || (flags & CHANGE_OVERLAYS) != 0) {
-                    Log.d(TAG, "onDisplayInfoChanged " + flags);
-                    MODEL_EXECUTOR.execute(() ->
-                        LauncherAppState.getInstance(mContext).getIconCache().clearDb());
-                    mModel.forceReload();
-                }
-            }
-        };
-        DisplayController.INSTANCE.get(mContext).addChangeListener(mDisplayInfoChangeListener);
-
         registerSnapshotLoggingCallback();
     }
 
@@ -268,8 +247,8 @@ public class QuickstepModelDelegate extends ModelDelegate {
                         "Item info: %s found with invalid container: %s",
                         info,
                         containerInfo));
-                return null;
             }
+            // Allow crash to help debug b/173838775
             return (CollectionInfo) containerInfo;
         }
         return null;
@@ -297,10 +276,6 @@ public class QuickstepModelDelegate extends ModelDelegate {
                 Log.e(TAG, "Failed to unregister snapshot logging callback with StatsManager", e);
             }
         }
-        if (mDisplayInfoChangeListener != null) {
-            DisplayController.INSTANCE.get(mContext).removeChangeListener(mDisplayInfoChangeListener);
-            mDisplayInfoChangeListener = null;
-        }
         destroyPredictors();
     }
 
@@ -322,8 +297,7 @@ public class QuickstepModelDelegate extends ModelDelegate {
         mAllPredictionAppsState.registerPredictor(mContext,
                 new AppPredictionContext.Builder(mContext)
                     .setUiSurface("home")
-                    .setPredictedTargetCount(mIDP.numDatabaseAllAppsColumns +
-                        TrustDatabaseHelper.getInstance(mContext).getTotalPackageHidden())
+                    .setPredictedTargetCount(mIDP.numDatabaseAllAppsColumns)
                     .build(),
                 mModel,
                 PredictionUpdateTask::new);
@@ -356,8 +330,7 @@ public class QuickstepModelDelegate extends ModelDelegate {
         mHotseatPredictionState.registerPredictor(context,
                 new AppPredictionContext.Builder(context)
                     .setUiSurface("hotseat")
-                    .setPredictedTargetCount(mIDP.numDatabaseHotseatIcons +
-                        TrustDatabaseHelper.getInstance(mContext).getTotalPackageHidden())
+                    .setPredictedTargetCount(mIDP.numDatabaseHotseatIcons)
                     .setExtras(getBundleForHotseatPredictions(context, mDataModel))
                     .build(),
                 mModel, PredictionUpdateTask::new);

@@ -53,14 +53,6 @@
 -dontwarn android.support.**
 -dontwarn org.apache.http.**
 
--keep class com.android.launcher3.icons.** {
-  *;
-}
-
--keep class com.android.launcher3.data.** {
-  *;
-}
-
 -keep class com.android.launcher3.lineage.trust.** {
   *;
 }

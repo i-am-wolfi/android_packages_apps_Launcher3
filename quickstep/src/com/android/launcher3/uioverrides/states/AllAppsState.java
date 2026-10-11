@@ -20,19 +20,14 @@ import static com.android.launcher3.logging.StatsLogManager.LAUNCHER_STATE_ALLAP
 
 import android.content.Context;
 import android.graphics.Color;
-import android.app.ActivityThread;
-
-import androidx.core.graphics.ColorUtils;
 
 import com.android.internal.jank.Cuj;
 import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.Flags;
 import com.android.launcher3.Launcher;
-import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.LauncherState;
 import com.android.launcher3.LauncherUiState;
 import com.android.launcher3.R;
-import com.android.launcher3.allapps.AppDrawerStyle;
 import com.android.launcher3.util.Themes;
 import com.android.launcher3.views.ActivityContext;
 import com.android.launcher3.views.ScrimColors;
@@ -126,7 +121,7 @@ public class AllAppsState extends LauncherState {
 
     @Override
     public ScaleAndTranslation getHotseatScaleAndTranslation(Launcher launcher) {
-        if (launcher.getDeviceProfile().shouldShowAllAppsOnSheet(launcher)) {
+        if (launcher.getDeviceProfile().shouldShowAllAppsOnSheet()) {
             return getWorkspaceScaleAndTranslation(launcher);
         } else {
             ScaleAndTranslation overviewScaleAndTranslation = LauncherState.OVERVIEW
@@ -141,7 +136,7 @@ public class AllAppsState extends LauncherState {
     @Override
     protected <DEVICE_PROFILE_CONTEXT extends Context & ActivityContext>
             float getDepthUnchecked(DEVICE_PROFILE_CONTEXT context) {
-        if (context.getDeviceProfile().shouldShowAllAppsOnSheet(context)) {
+        if (context.getDeviceProfile().shouldShowAllAppsOnSheet()) {
             return context.getDeviceProfile().getBottomSheetProfile().getBottomSheetDepth();
         } else {
             // The scrim fades in at approximately 50% of the swipe gesture.
@@ -162,7 +157,7 @@ public class AllAppsState extends LauncherState {
         return new PageAlphaProvider(DECELERATE_2) {
             @Override
             public float getPageAlpha(int pageIndex) {
-                return isWorkspaceVisible(launcher, launcher.getDeviceProfile())
+                return isWorkspaceVisible(launcher.getDeviceProfile())
                         ? superPageAlphaProvider.getPageAlpha(pageIndex)
                         : 0;
             }
@@ -172,19 +167,14 @@ public class AllAppsState extends LauncherState {
     @Override
     public int getVisibleElements(LauncherUiState launcherUiState) {
         int elements = ALL_APPS_CONTENT | FLOATING_SEARCH_BAR;
-        Context context = ActivityThread.currentApplication();
-        if (isWorkspaceVisible(context, launcherUiState.getDeviceProfileRef().getValue())) {
+        if (isWorkspaceVisible(launcherUiState.getDeviceProfileRef().getValue())) {
             elements |= HOTSEAT_ICONS;
         }
         return elements;
     }
 
-    private static boolean isWorkspaceVisible(Context context, DeviceProfile deviceProfile) {
-        if (context != null) {
-            String style = AppDrawerStyle.get(context);
-            return !AppDrawerStyle.isFullscreen(style) && !AppDrawerStyle.isVerticalPaged(style);
-        }
-        return deviceProfile.getDeviceProperties().isTablet();
+    private static boolean isWorkspaceVisible(DeviceProfile deviceProfile) {
+        return deviceProfile.getDeviceProperties().isTablet() || (Flags.allAppsSheetForHandheld() && Flags.allAppsBlur());
     }
 
     @Override
@@ -213,19 +203,15 @@ public class AllAppsState extends LauncherState {
     @Override
     public ScrimColors getWorkspaceScrimColor(Launcher launcher) {
         int backgroundColor;
-        int scrimColor;
-        if (LauncherPrefs.APP_DRAWER_CUSTOM_COLOR_ENABLED.get(launcher)) {
-            backgroundColor = AppDrawerStyle.getBackgroundColor(launcher);
-        } else if (!launcher.getDeviceProfile().shouldShowAllAppsOnSheet(launcher)) {
-            backgroundColor = AppDrawerStyle.getThemedBackgroundColor(launcher);
+        if (!launcher.getDeviceProfile().shouldShowAllAppsOnSheet()) {
+            // Always use an opaque scrim if there's no sheet.
+            backgroundColor = launcher.getResources().getColor(R.color.materialColorSurfaceDim);
         } else if (!Flags.allAppsBlur()) {
             // If there's a sheet but no blur, use the old scrim color.
             backgroundColor = launcher.getResources().getColor(R.color.widgets_picker_scrim);
         } else {
             backgroundColor = Themes.getAttrColor(launcher, R.attr.allAppsScrimColor);
         }
-        scrimColor = ColorUtils.setAlphaComponent(
-                backgroundColor, LauncherPrefs.APP_DRAWER_OPACITY.get(launcher) * 255 / 100);
-        return new ScrimColors(scrimColor, /* foregroundColor */ Color.TRANSPARENT);
+        return new ScrimColors(backgroundColor, /* foregroundColor */ Color.TRANSPARENT);
     }
 }

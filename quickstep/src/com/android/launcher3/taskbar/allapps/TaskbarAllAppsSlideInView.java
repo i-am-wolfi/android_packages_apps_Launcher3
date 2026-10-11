@@ -41,15 +41,12 @@ import android.view.animation.Interpolator;
 import android.window.OnBackInvokedDispatcher;
 
 import androidx.annotation.Nullable;
-import androidx.core.graphics.ColorUtils;
 
 import com.android.app.animation.Interpolators;
 import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.Flags;
 import com.android.launcher3.Insettable;
-import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.R;
-import com.android.launcher3.allapps.AppDrawerStyle;
 import com.android.launcher3.anim.AnimatorListeners;
 import com.android.launcher3.anim.PendingAnimation;
 import com.android.launcher3.taskbar.allapps.TaskbarAllAppsViewController.TaskbarAllAppsCallbacks;
@@ -276,18 +273,14 @@ public class TaskbarAllAppsSlideInView extends AbstractSlideInView<TaskbarOverla
 
     @Override
     protected int getScrimColor(Context context) {
-        int scrimColor;
-        if (!mActivityContext.getDeviceProfile().shouldShowAllAppsOnSheet(mActivityContext)) {
+        if (!mActivityContext.getDeviceProfile().shouldShowAllAppsOnSheet()) {
             // Always use an opaque scrim if there's no sheet.
-            scrimColor = AppDrawerStyle.getThemedBackgroundColor(context);
+            return context.getResources().getColor(R.color.materialColorSurfaceDim);
         } else if (!Flags.allAppsBlur()) {
             // If there's a sheet but no blur, use the old scrim color.
-            scrimColor = context.getResources().getColor(R.color.widgets_picker_scrim);
-        } else {
-            scrimColor = Themes.getAttrColor(context, R.attr.allAppsScrimColor);
+            return context.getResources().getColor(R.color.widgets_picker_scrim);
         }
-        return ColorUtils.setAlphaComponent(
-                scrimColor, LauncherPrefs.APP_DRAWER_OPACITY.get(context) * 255 / 100);
+        return Themes.getAttrColor(context, R.attr.allAppsScrimColor);
     }
 
     @Override

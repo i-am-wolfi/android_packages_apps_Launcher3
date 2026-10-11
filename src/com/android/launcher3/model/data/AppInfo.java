@@ -76,8 +76,6 @@ public class AppInfo extends ItemInfoWithIcon implements WorkspaceItemFactory {
      */
     public int uid = -1;
 
-    public long firstInstallTime;
-
     public AppInfo() {
         itemType = LauncherSettings.Favorites.ITEM_TYPE_APPLICATION;
     }
@@ -102,7 +100,6 @@ public class AppInfo extends ItemInfoWithIcon implements WorkspaceItemFactory {
         this.container = CONTAINER_ALL_APPS;
         this.user = cachedUserInfo.getIconInfo().user;
         intent = makeLaunchIntent(info);
-        firstInstallTime = info.getFirstInstallTime();
 
         if (cachedUserInfo.isQuietModeEnabled()) {
             runtimeStatusFlags |= FLAG_DISABLED_QUIET_USER;
@@ -118,7 +115,6 @@ public class AppInfo extends ItemInfoWithIcon implements WorkspaceItemFactory {
         title = Utilities.trim(info.title);
         intent = new Intent(info.intent);
         uid = info.uid;
-        firstInstallTime = info.firstInstallTime;
     }
 
     @VisibleForTesting

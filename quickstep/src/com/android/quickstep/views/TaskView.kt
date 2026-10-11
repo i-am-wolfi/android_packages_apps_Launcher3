@@ -40,7 +40,6 @@ import android.view.ViewGroup
 import android.view.ViewStub
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.FrameLayout
-import android.widget.ImageView
 import android.widget.Toast
 import androidx.annotation.IntDef
 import androidx.annotation.VisibleForTesting
@@ -81,7 +80,6 @@ import com.android.launcher3.util.ViewPool
 import com.android.launcher3.util.coroutines.DispatcherProvider
 import com.android.launcher3.util.rects.set
 import com.android.quickstep.FullscreenDrawParams
-import com.android.quickstep.LockedTaskManager
 import com.android.quickstep.RecentsModel
 import com.android.quickstep.RemoteAnimationTargets
 import com.android.quickstep.RemoteTargetGluer.RemoteTargetHandle
@@ -326,11 +324,6 @@ constructor(
     var isEndQuickSwitchCuj = false
     var isBeingDraggedForDismissal = false
     var isBeingDismissed: Boolean = false
-    var isLocked: Boolean = false
-        private set
-
-    var lockedPackageName: String? = null
-        private set
 
     private val systemGestureExclusionRectList = listOf(Rect()) // We only need 1 exclusion Rect
 
@@ -422,7 +415,6 @@ constructor(
             field = value
             applyTranslationX()
         }
-    var baseTaskOffsetTranslationX = 0f
 
     private var taskOffsetTranslationY = 0f
         set(value) {
@@ -764,8 +756,6 @@ constructor(
     override fun onRecycle() {
         isBeingDraggedForDismissal = false
         isBeingDismissed = false
-        isLocked = false
-        lockedPackageName = null
         resetPersistentViewTransforms()
 
         groupTask = null
@@ -1171,7 +1161,6 @@ constructor(
                 }
             }
             setOrientationState(orientedState)
-            updateLockState(firstTask?.key?.packageName)
         }
 
     private fun applyThumbnailSplashAlpha() {
@@ -1907,18 +1896,6 @@ constructor(
         }
     }
 
-    fun updateLockState(packageName: String?) {
-        lockedPackageName = packageName
-        val chip = findViewById<IconAppChipView>(R.id.icon)
-        if (packageName == null) {
-            isLocked = false
-            chip?.setLockState(false)
-            return
-        }
-        isLocked = LockedTaskManager.getInstance(context).isPackageLocked(packageName)
-        chip?.setLockState(isLocked)
-    }
-
     /**
      * Returns a callback that updates the state of the filter and the recents overview
      *
@@ -2144,7 +2121,6 @@ constructor(
         // fullscreenTranslation and accumulatedTranslation should not be reset, as
         // resetViewTransforms is called during QuickSwitch scrolling.
         taskOffsetTranslationX = 0f
-        baseTaskOffsetTranslationX = 0f
         taskResistanceTranslationX = 0f
         splitSelectTranslationX = 0f
         gridEndTranslationX = 0f

@@ -257,10 +257,8 @@ public class StateManager<S extends BaseState<S>, T extends StatefulContainer<S>
 
     private void goToState(
             S state, boolean animated, long delay, AnimatorListener listener) {
-        if (StateManagerProtoLogProxy.isEnabled()) {
-            StateManagerProtoLogProxy.logGoToState(
-                    mState, state, getTrimmedStackTrace("StateManager.goToState"));
-        }
+        StateManagerProtoLogProxy.logGoToState(
+                mState, state, getTrimmedStackTrace("StateManager.goToState"));
 
         animated &= areAnimatorsEnabled();
         if (getState() == state) {
@@ -347,10 +345,8 @@ public class StateManager<S extends BaseState<S>, T extends StatefulContainer<S>
      */
     public AnimatorSet createAtomicAnimation(
             S fromState, S toState, StateAnimationConfig config) {
-        if (StateManagerProtoLogProxy.isEnabled()) {
-            StateManagerProtoLogProxy.logCreateAtomicAnimation(
-                    mState, toState, getTrimmedStackTrace("StateManager.createAtomicAnimation"));
-        }
+        StateManagerProtoLogProxy.logCreateAtomicAnimation(
+                mState, toState, getTrimmedStackTrace("StateManager.createAtomicAnimation"));
 
         PendingAnimation builder = new PendingAnimation(config.duration);
         prepareForAtomicAnimation(fromState, toState, config);
@@ -488,11 +484,9 @@ public class StateManager<S extends BaseState<S>, T extends StatefulContainer<S>
      * Cancels the current animation.
      */
     public void cancelAnimation() {
-        if (StateManagerProtoLogProxy.isEnabled()) {
-            StateManagerProtoLogProxy.logCancelAnimation(
-                    mConfig.currentAnimation != null,
-                    getTrimmedStackTrace("StateManager.cancelAnimation"));
-        }
+        StateManagerProtoLogProxy.logCancelAnimation(
+                mConfig.currentAnimation != null,
+                getTrimmedStackTrace("StateManager.cancelAnimation"));
         mConfig.reset();
         // It could happen that a new animation is set as a result of an endListener on the
         // existing animation.

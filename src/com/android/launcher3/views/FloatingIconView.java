@@ -575,9 +575,7 @@ public class FloatingIconView extends FrameLayout implements
             } else {
                 btvIcon = btv.getIcon();
                 // Clone when needed
-                btvDrawableSupplier = () -> (btvIcon != null && btvIcon.getConstantState() != null)
-                        ? btvIcon.getConstantState().newDrawable()
-                        : null;
+                btvDrawableSupplier = () -> btvIcon.getConstantState().newDrawable();
             }
         } else {
             btvIcon = null;

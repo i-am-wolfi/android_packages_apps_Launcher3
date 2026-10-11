@@ -44,8 +44,6 @@ public class AllAppsGridAdapter extends BaseAllAppsAdapter {
     private final AppsGridLayoutManager mGridLayoutMgr;
     private final CopyOnWriteArrayList<OnLayoutCompletedListener> mOnLayoutCompletedListeners =
             new CopyOnWriteArrayList<>();
-    private String mDrawerStyle;
-    private final boolean mAllowDrawerStyleModes;
 
     /**
      * Listener for {@link RecyclerView.LayoutManager#onLayoutCompleted(RecyclerView.State)}
@@ -72,20 +70,11 @@ public class AllAppsGridAdapter extends BaseAllAppsAdapter {
 
 
     public AllAppsGridAdapter(ActivityContext activityContext, LayoutInflater inflater,
-            AlphabeticalAppsList apps, SearchAdapterProvider<?> adapterProvider,
-            boolean allowDrawerStyleModes) {
+            AlphabeticalAppsList apps, SearchAdapterProvider<?> adapterProvider) {
         super(activityContext, inflater, apps, adapterProvider);
         mGridLayoutMgr = new AppsGridLayoutManager(mActivityContext.asContext());
-        mAllowDrawerStyleModes = allowDrawerStyleModes;
         mGridLayoutMgr.setSpanSizeLookup(new GridSpanSizer());
-        mDrawerStyle = mAllowDrawerStyleModes
-                ? AppDrawerStyle.get(mActivityContext.asContext())
-                : AppDrawerStyle.NORMAL;
         setAppsPerRow(activityContext.getDeviceProfile().numShownAllAppsColumns);
-    }
-
-    public String getDrawerStyle() {
-        return mDrawerStyle;
     }
 
     /**
@@ -194,23 +183,7 @@ public class AllAppsGridAdapter extends BaseAllAppsAdapter {
 
     @Override
     public void setAppsPerRow(int appsPerRow) {
-        mDrawerStyle = mAllowDrawerStyleModes
-                ? AppDrawerStyle.get(mActivityContext.asContext())
-                : AppDrawerStyle.NORMAL;
-
-        if (AppDrawerStyle.isHorizontalList(mDrawerStyle)) {
-            mAppsPerRow = 1;
-        } else {
-            mAppsPerRow = appsPerRow;
-        }
-
-        if (AppDrawerStyle.isVerticalPaged(mDrawerStyle)) {
-            mGridLayoutMgr.setOrientation(RecyclerView.HORIZONTAL);
-            mGridLayoutMgr.setSpanCount(getOneUiRows());
-            return;
-        }
-
-        mGridLayoutMgr.setOrientation(RecyclerView.VERTICAL);
+        mAppsPerRow = appsPerRow;
         int totalSpans = mAppsPerRow;
         for (int itemPerRow : mAdapterProvider.getSupportedItemsPerRowArray()) {
             if (totalSpans % itemPerRow != 0) {
@@ -218,10 +191,6 @@ public class AllAppsGridAdapter extends BaseAllAppsAdapter {
             }
         }
         mGridLayoutMgr.setSpanCount(totalSpans);
-    }
-
-    private int getOneUiRows() {
-        return Math.max(1, mActivityContext.getDeviceProfile().getMaxAllAppsRowCount());
     }
 
     /**
@@ -243,9 +212,6 @@ public class AllAppsGridAdapter extends BaseAllAppsAdapter {
             }
             int viewType = items.get(position).viewType;
             if (isIconViewType(viewType)) {
-                if (AppDrawerStyle.isVerticalPaged(mDrawerStyle)) {
-                    return 1;
-                }
                 return totalSpans / mAppsPerRow;
             } else {
                 if (mAdapterProvider.isViewSupported(viewType)) {

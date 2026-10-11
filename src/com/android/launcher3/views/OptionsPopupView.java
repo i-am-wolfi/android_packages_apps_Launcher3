@@ -32,7 +32,6 @@ import android.graphics.drawable.Drawable;
 import android.text.TextUtils;
 import android.util.ArrayMap;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.View.OnClickListener;
@@ -44,11 +43,9 @@ import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 
 import com.android.launcher3.Launcher;
-import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.LauncherSettings;
 import com.android.launcher3.R;
 import com.android.launcher3.Utilities;
-import com.android.launcher3.data.wallpaper.service.WallpaperService;
 import com.android.launcher3.logging.StatsLogManager.EventEnum;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.popup.ArrowPopup;
@@ -149,11 +146,6 @@ public class OptionsPopupView<T extends Context & ActivityContext> extends Arrow
     @Override
     public void assignMarginsAndBackgrounds(ViewGroup viewGroup) {
         assignMarginsAndBackgrounds(viewGroup, mColors[0]);
-    }
-
-    @Override
-    protected void assignMarginsAndBackgrounds(ViewGroup viewGroup, int backgroundColor) {
-        super.assignMarginsAndBackgrounds(viewGroup, backgroundColor);
         // last shortcut doesn't need bottom margin
         final int count = viewGroup.getChildCount() - 1;
         for (int i = 0; i < count; i++) {
@@ -189,27 +181,13 @@ public class OptionsPopupView<T extends Context & ActivityContext> extends Arrow
         if (activityContext == null) {
             return null;
         }
-
-        final Context context = (Context) activityContext;
-
-        var layout = R.layout.longpress_options_menu;
-        boolean isEmpty = true;
-        if (LauncherPrefs.WALLPAPER_CAROUSEL.get(context)) {
-            final List<com.android.launcher3.data.wallpaper.Wallpaper> wallpapers = 
-                    WallpaperService.INSTANCE.get(context).getTopWallpapersBlocking();
-            isEmpty = wallpapers.isEmpty();
-            Log.d("OptionsPopupView", "Wallpapers in DB: " + wallpapers.size() + ", isEmpty: " + isEmpty);
-            layout = isEmpty ? R.layout.longpress_options_menu : R.layout.wallpaper_options_popup;
-        }
-
         OptionsPopupView<T> popup = (OptionsPopupView<T>) activityContext.getLayoutInflater()
-                .inflate(layout, activityContext.getDragLayer(), false);
+                .inflate(R.layout.longpress_options_menu, activityContext.getDragLayer(), false);
         popup.mTargetRect = targetRect;
         popup.setShouldAddArrow(shouldAddArrow);
 
         for (OptionItem item : items) {
-            var deepLayout = isEmpty ? R.layout.system_shortcut : R.layout.wallpaper_options_popup_item;
-            DeepShortcutView view = popup.inflateAndAdd(deepLayout, popup);
+            DeepShortcutView view = popup.inflateAndAdd(R.layout.system_shortcut, popup);
             if (width > 0) {
                 view.getLayoutParams().width = width;
             }
@@ -230,11 +208,11 @@ public class OptionsPopupView<T extends Context & ActivityContext> extends Arrow
     public static ArrayList<OptionItem> getOptions(Launcher launcher) {
         ArrayList<OptionItem> options = new ArrayList<>();
         options.add(new OptionItem(launcher,
-                R.string.settings_title,
-                R.drawable.ic_setting,
-                LAUNCHER_SETTINGS_BUTTON_TAP_OR_LONGPRESS,
-                OptionsPopupView::startSettings));
-        if (WIDGETS_ENABLED && !LauncherPrefs.WORKSPACE_LOCK.get(launcher)) {
+                R.string.styles_wallpaper_button_text,
+                R.drawable.ic_palette,
+                IGNORE,
+                OptionsPopupView::startWallpaperPicker));
+        if (WIDGETS_ENABLED && Utilities.isWorkspaceEditAllowed(launcher)) {
             options.add(new OptionItem(launcher,
                     R.string.widget_button_text,
                     R.drawable.ic_widget,
@@ -254,10 +232,10 @@ public class OptionsPopupView<T extends Context & ActivityContext> extends Arrow
                 LAUNCHER_ALL_APPS_TAP_OR_LONGPRESS,
                 OptionsPopupView::enterAllApps));
         options.add(new OptionItem(launcher,
-                R.string.styles_wallpaper_button_text,
-                R.drawable.ic_palette,
-                IGNORE,
-                OptionsPopupView::startWallpaperPicker));
+                R.string.settings_button_text,
+                R.drawable.ic_setting,
+                LAUNCHER_SETTINGS_BUTTON_TAP_OR_LONGPRESS,
+                OptionsPopupView::startSettings));
         return options;
     }
 

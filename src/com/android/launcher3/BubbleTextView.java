@@ -24,7 +24,7 @@ import static com.android.launcher3.BubbleTextView.RunningAppState.MINIMIZED;
 import static com.android.launcher3.BubbleTextView.RunningAppState.RUNNING;
 import static com.android.launcher3.Flags.enableContrastTiles;
 import static com.android.launcher3.Flags.enableScalabilityForDesktopExperience;
-import static com.android.launcher3.LauncherPrefs.ALLAPPS_ICON_CUSTOMIZATION;
+import static com.android.launcher3.LauncherPrefs.ALLAPPS_THEMED_ICONS;
 import static com.android.launcher3.LauncherPrefs.SHOW_DESKTOP_LABELS;
 import static com.android.launcher3.LauncherPrefs.SHOW_DRAWER_LABELS;
 import static com.android.launcher3.graphics.PreloadIconDelegate.extractPreloadDelegate;
@@ -45,6 +45,7 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ObjectAnimator;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.content.res.TypedArray;
 import android.graphics.Canvas;
@@ -291,14 +292,15 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
             defaultIconSize = mDeviceProfile.getWorkspaceIconProfile().getIconSizePx();
             setCenterVertically(mDeviceProfile.getWorkspaceIconProfile().getIconCenterVertically());
             mShouldShowLabel = SHOW_DESKTOP_LABELS.get(context);
-        } else if (displayIsAppDrawer()) {
+        } else if (mDisplay == DISPLAY_ALL_APPS || mDisplay == DISPLAY_PREDICTION_ROW
+                || mDisplay == DISPLAY_SEARCH_RESULT_APP_ROW) {
             setTextSize(TypedValue.COMPLEX_UNIT_PX,
                     mDeviceProfile.getAllAppsProfile().getIconTextSizePx());
             setCompoundDrawablePadding(
                     mDeviceProfile.getAllAppsProfile().getIconDrawablePaddingPx());
             defaultIconSize = mDeviceProfile.getAllAppsProfile().getIconSizePx();
             mShouldShowLabel = SHOW_DRAWER_LABELS.get(context);
-            mThemeAllAppsIcons = ALLAPPS_ICON_CUSTOMIZATION.get(context);
+            mThemeAllAppsIcons = ALLAPPS_THEMED_ICONS.get(context);
         } else if (mDisplay == DISPLAY_FOLDER) {
             setTextSize(TypedValue.COMPLEX_UNIT_PX,
                     mDeviceProfile.getFolderProfile().getChildTextSizePx());
@@ -320,8 +322,9 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
         } else {
             // widget_selection or shortcut_popup
             defaultIconSize = mDeviceProfile.getWorkspaceIconProfile().getIconSizePx();
-            mShouldShowLabel = true;
+            mShouldShowLabel = SHOW_DESKTOP_LABELS.get(context);
         }
+
 
         mIconSize = a.getDimensionPixelSize(R.styleable.BubbleTextView_iconSizeOverride,
                 defaultIconSize);
@@ -353,12 +356,6 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
         setEllipsize(TruncateAt.END);
         setAccessibilityDelegate(mActivity.getAccessibilityDelegate());
         setTextAlpha(1f);
-    }
-    
-    private boolean displayIsAppDrawer() {
-        return (mDisplay == DISPLAY_ALL_APPS 
-                || mDisplay == DISPLAY_PREDICTION_ROW
-                || mDisplay == DISPLAY_SEARCH_RESULT_APP_ROW);
     }
 
     @Override
@@ -596,7 +593,7 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
     protected boolean shouldUseTheme() {
         return mDisplay == DISPLAY_WORKSPACE || mDisplay == DISPLAY_FOLDER
                 || mDisplay == DISPLAY_TASKBAR
-                || (mThemeAllAppsIcons && displayIsAppDrawer());
+                || (mThemeAllAppsIcons && mDisplay == DISPLAY_ALL_APPS);
     }
 
     /**
@@ -608,7 +605,7 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
         // whether the BubbleTextView height needs to be increased to accommodate an extra line of
         // text.
         if (mDisplay == DISPLAY_ALL_APPS || mDisplay == DISPLAY_PREDICTION_ROW) {
-            return LauncherPrefs.ENABLE_TWOLINE_ALLAPPS_TOGGLE.get(getContext());
+            return mDeviceProfile.inv.enableTwoLinesInAllApps;
         }
 
         // Otherwise, show two lines if the cell declares it can fit two line label.
@@ -1003,10 +1000,10 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         int height = MeasureSpec.getSize(heightMeasureSpec);
-        if ((mCenterVertically || !mShouldShowLabel) && !mLayoutHorizontal) {
+        if (mCenterVertically) {
             Paint.FontMetrics fm = getPaint().getFontMetrics();
-            int textHeight = mShouldShowLabel ? (int) Math.ceil(fm.bottom - fm.top) * getCellSpecMaxTextLineCount(): 0;
-            int cellHeightPx = mIconSize + getCompoundDrawablePadding() + textHeight;
+            int cellHeightPx = mIconSize + getCompoundDrawablePadding() +
+                    (int) Math.ceil(fm.bottom - fm.top) * getCellSpecMaxTextLineCount();
             setPadding(getPaddingLeft(), (height - cellHeightPx) / 2, getPaddingRight(),
                     getPaddingBottom());
         }
@@ -1360,11 +1357,6 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
         return mIsIconVisible ? mIcon : new ColorDrawable(Color.TRANSPARENT);
     }
 
-    @Override
-    public boolean hasOverlappingRendering() {
-        return false;
-    }
-
     /** Sets the icon visual state to disabled or not. */
     public void setIconDisabled(boolean isDisabled) {
         if (mIcon != null) {
@@ -1382,9 +1374,7 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
         // same as before.
         mDisableRelayout = mIcon != null;
 
-        if (icon.getBounds().width() != mIconSize || icon.getBounds().height() != mIconSize) {
-            icon.setBounds(0, 0, mIconSize, mIconSize);
-        }
+        icon.setBounds(0, 0, mIconSize, mIconSize);
 
         updateIcon(icon);
 
@@ -1438,9 +1428,6 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
         CacheLookupFlag expectedFlag = DEFAULT_LOOKUP_FLAG.withThemeIcon(shouldUseTheme());
         if (getTag() instanceof ItemInfoWithIcon info && !mHighResUpdateInProgress
                 && info.getMatchingLookupFlag().isVisuallyLessThan(expectedFlag)) {
-                if (mIcon != null && mIcon.isThemed() && shouldUseTheme()) {
-                    return;
-                }
             if (mIconLoadRequest != null) {
                 mIconLoadRequest.cancel();
             }

@@ -28,7 +28,6 @@ import com.android.launcher3.MainProcessInitializer;
 import com.android.launcher3.RemoveAnimationSettingsTracker;
 import com.android.launcher3.backuprestore.LauncherRestoreEventLogger;
 import com.android.launcher3.compose.core.widgetpicker.WidgetPickerComposeWrapper;
-import com.android.launcher3.data.wallpaper.service.WallpaperService;
 import com.android.launcher3.dragndrop.SystemDragController;
 import com.android.launcher3.folder.FolderNameSuggestionLoader;
 import com.android.launcher3.graphics.GridCustomizationsProxy;
@@ -58,7 +57,6 @@ import com.android.launcher3.util.DisplayController;
 import com.android.launcher3.util.DynamicResource;
 import com.android.launcher3.util.InstantAppResolver;
 import com.android.launcher3.util.LayoutImportExportHelper;
-import com.android.launcher3.util.ListenableRef;
 import com.android.launcher3.util.LockedUserState;
 import com.android.launcher3.util.MSDLPlayerWrapper;
 import com.android.launcher3.util.PackageManagerHelper;
@@ -77,8 +75,6 @@ import com.android.launcher3.widget.util.WidgetSizeHandler;
 import dagger.BindsInstance;
 
 import javax.inject.Named;
-
-import static com.android.launcher3.util.WindowBlurState.WINDOW_BLUR_STATE;
 
 /**
  * Launcher base component for Dagger injection.
@@ -152,11 +148,6 @@ public interface LauncherBaseAppComponent {
 
     /** Tracker for any app icon changes */
     IconChangeTracker getIconChangeTracker();
-
-    /** Tracker for cross window blur enabled state */
-    @Named(WINDOW_BLUR_STATE) ListenableRef<Boolean> getWindowBlurState();
-
-    WallpaperService getWallpaperService();
 
     /** Builder for LauncherBaseAppComponent. */
     interface Builder {
