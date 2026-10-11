@@ -22,6 +22,8 @@ import androidx.annotation.UiThread;
 
 import java.lang.reflect.Constructor;
 
+import java.util.function.Function;
+
 /**
  * Holder for an object that is initialized on the main thread, with support
  * for resource-based overrides (see {@link #forOverride}).
@@ -32,11 +34,18 @@ public class MainThreadInitializedObject<T extends ResourceBasedOverride> {
 
     private final Class<T> mClazz;
     private final int mResId;
+    private final Function<Context, T> mProvider;
     private T mValue;
 
     public MainThreadInitializedObject(Class<T> clazz, int resId) {
         mClazz = clazz;
         mResId = resId;
+    }
+
+    public MainThreadInitializedObject(Function<Context, T> provider) {
+        mClazz = null;
+        mResId = 0;
+        mProvider = provider;
     }
 
     public static <T extends ResourceBasedOverride> MainThreadInitializedObject<T> forOverride(
@@ -50,6 +59,9 @@ public class MainThreadInitializedObject<T extends ResourceBasedOverride> {
      */
     @UiThread
     public synchronized T get(Context context) {
+        if (mValue == null && mProvider != null) {
+            mValue = mProvider.apply(context.getApplicationContext());
+        }
         if (mValue == null) {
             String className = null;
             try {
